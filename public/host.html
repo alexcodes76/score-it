@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Score It! — Host</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0a">
+<script src="https://sdk.scdn.co/spotify-player.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a; --surface: #141414; --surface2: #1e1e1e;
+    --border: #2a2a2a; --gold: #c9a84c; --gold-dim: #8a6f30;
+    --text: #f0ece4; --text-dim: #7a7268; --text-mid: #b0a898;
+    --red: #c94c4c; --green: #4cac6c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-weight: 300; min-height: 100vh; }
+  .screen { display: none; flex-direction: column; min-height: 100vh; }
+  .screen.active { display: flex; }
+  .app-header { padding: 52px 24px 16px; position: relative; }
+  .app-title { font-family: 'Playfair Display', serif; font-size: 36px; font-weight: 900; color: var(--gold); }
+  .app-subtitle { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--text-dim); margin-top: 4px; }
+  .content { flex: 1; padding: 0 24px 40px; overflow-y: auto; }
+  .section-label { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 12px; margin-top: 28px; }
+  .btn { display: block; width: 100%; padding: 16px 20px; border: none; border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; text-align: center; transition: all 0.15s ease; margin-bottom: 10px; }
+  .btn-primary { background: var(--gold); color: #0a0a0a; }
+  .btn-primary:active { background: var(--gold-dim); }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+  .btn-green { background: #1DB954; color: #000; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  input[type="text"], select { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 16px; font-weight: 300; padding: 14px 16px; outline: none; -webkit-appearance: none; }
+  input:focus, select:focus { border-color: var(--gold-dim); }
+  select option { background: #1e1e1e; }
+  .toggle-row { display: flex; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-bottom: 4px; }
+  .toggle-opt { flex: 1; padding: 12px 6px; text-align: center; font-size: 13px; cursor: pointer; color: var(--text-dim); transition: all 0.15s; }
+  .toggle-opt.selected { background: var(--gold); color: #0a0a0a; font-weight: 500; }
+  .room-code { font-family: 'Playfair Display', serif; font-size: 64px; font-weight: 900; color: var(--gold); letter-spacing: 8px; text-align: center; padding: 24px 0; }
+  .player-chip { display: flex; align-items: center; justify-content: space-between; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 8px; }
+  .scenario-box { background: #0f0e0b; border: 1px solid var(--gold-dim); border-radius: 14px; padding: 20px; margin-bottom: 16px; position: relative; overflow: hidden; }
+  .scenario-box::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--gold), transparent); }
+  .scenario-label { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--gold-dim); margin-bottom: 10px; }
+  .scenario-text { font-family: 'Playfair Display', serif; font-size: 18px; font-style: italic; line-height: 1.5; }
+  .now-playing-card { background: #0f0e0b; border: 1px solid var(--gold-dim); border-radius: 14px; padding: 20px; text-align: center; margin-bottom: 16px; position: relative; overflow: hidden; }
+  .now-playing-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--gold), transparent); }
+  .verdict-box { background: #0f0e0b; border: 1px solid var(--gold-dim); border-radius: 14px; padding: 20px; position: relative; overflow: hidden; margin-bottom: 16px; }
+  .verdict-box::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--gold), transparent); }
+  .score-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .score-row:last-child { border-bottom: none; }
+  .score-row.leader .score-name { color: var(--gold); }
+  .score-pts { font-family: 'Playfair Display', serif; font-size: 22px; color: var(--gold); }
+  .progress-bar { height: 2px; background: var(--border); border-radius: 1px; margin-bottom: 20px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--gold); border-radius: 1px; transition: width 0.4s ease; }
+  .loading-dots { display: inline-flex; gap: 4px; align-items: center; }
+  .loading-dots span { width: 6px; height: 6px; background: var(--gold); border-radius: 50%; animation: pulse 1.2s ease-in-out infinite; }
+  .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes pulse { 0%,60%,100% { opacity:0.2; transform:scale(0.8); } 30% { opacity:1; transform:scale(1); } }
+  .timer-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin: 12px 0 6px; }
+  .timer-bar { height: 100%; background: var(--gold); border-radius: 2px; width: 100%; transition: width linear; }
+  .badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 12px; }
+  .badge-green { background: #0e2010; color: var(--green); border: 1px solid #1a4020; }
+  .badge-yellow { background: #1e1a0e; color: var(--gold); border: 1px solid var(--gold-dim); }
+  .queue-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--border); }
+  .ranked-entry { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+  .ranked-entry.winner { background: #0f0e0b; border-color: var(--gold-dim); }
+  .stepper-row { display: flex; align-items: center; gap: 14px; }
+  .stepper-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; width: 40px; height: 40px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .stepper-val { font-family: 'Playfair Display', serif; font-size: 28px; color: var(--gold); min-width: 40px; text-align: center; }
+</style>
+</head>
+<body>
+
+<!-- SETUP -->
+<div id="screen-setup" class="screen active">
+  <div class="app-header">
+    <div class="app-title">Score It!</div>
+    <div class="app-subtitle">Host Setup</div>
+  </div>
+  <div class="content">
+
+    <!-- Spotify -->
+    <div class="section-label">Spotify</div>
+    <div id="spotify-status" style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:12px;display:flex;align-items:center;gap:10px;">
+      <div id="spotify-dot" style="width:8px;height:8px;border-radius:50%;background:var(--text-dim);flex-shrink:0;"></div>
+      <div style="flex:1;font-size:13px;" id="spotify-status-text">Not connected</div>
+    </div>
+    <button class="btn btn-green" id="spotify-connect-btn" onclick="connectSpotify()">Connect Spotify</button>
+
+    <!-- Difficulty -->
+    <div class="section-label">Difficulty</div>
+    <div class="toggle-row">
+      <div class="toggle-opt selected" data-diff="easy" onclick="selectDiff(this)">Easy</div>
+      <div class="toggle-opt" data-diff="medium" onclick="selectDiff(this)">Medium</div>
+      <div class="toggle-opt" data-diff="hard" onclick="selectDiff(this)">Hard</div>
+    </div>
+
+    <!-- Rounds -->
+    <div class="section-label">Rounds</div>
+    <div class="stepper-row">
+      <button class="stepper-btn" onclick="adjustRounds(-1)">−</button>
+      <div class="stepper-val" id="rounds-display">5</div>
+      <button class="stepper-btn" onclick="adjustRounds(1)">+</button>
+      <span style="font-size:13px;color:var(--text-dim);">rounds</span>
+    </div>
+
+    <!-- Judging -->
+    <div class="section-label">Judging Style</div>
+    <div class="toggle-row">
+      <div class="toggle-opt selected" data-judge="winner" onclick="selectJudge(this)">Winner only</div>
+      <div class="toggle-opt" data-judge="ranked" onclick="selectJudge(this)">Full ranking</div>
+    </div>
+
+    <!-- Song Duration -->
+    <div class="section-label">Song Duration</div>
+    <div class="toggle-row">
+      <div class="toggle-opt" data-dur="30" onclick="selectDur(this)">:30</div>
+      <div class="toggle-opt selected" data-dur="60" onclick="selectDur(this)">1 min</div>
+      <div class="toggle-opt" data-dur="90" onclick="selectDur(this)">1:30</div>
+      <div class="toggle-opt" data-dur="0" onclick="selectDur(this)">Full</div>
+    </div>
+
+    <button class="btn btn-primary" style="margin-top:32px;" onclick="createRoom()">Create Room →</button>
+    <a href="/" class="btn btn-ghost">← Back</a>
+  </div>
+</div>
+
+<!-- LOBBY -->
+<div id="screen-lobby" class="screen">
+  <div class="app-header">
+    <div class="app-title">Score It!</div>
+    <div class="app-subtitle">Waiting for players</div>
+  </div>
+  <div class="content">
+    <div style="text-align:center;margin-bottom:8px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);">Room Code</div>
+    <div class="room-code" id="room-code-display">----</div>
+    <div style="text-align:center;font-size:13px;color:var(--text-dim);margin-bottom:28px;">Players go to <strong style="color:var(--text);">score-it-game-production.up.railway.app/play</strong></div>
+
+    <div class="section-label">Players <span id="player-count-badge" style="color:var(--gold);">(0)</span></div>
+    <div id="player-list"></div>
+
+    <button class="btn btn-primary" id="start-btn" onclick="startGame()" disabled style="margin-top:20px;">Start Game →</button>
+  </div>
+</div>
+
+<!-- ROUND / SUBMISSIONS -->
+<div id="screen-round" class="screen">
+  <div class="app-header" style="padding-bottom:10px;">
+    <div class="app-title">Score It!</div>
+    <div id="round-label" class="app-subtitle"></div>
+  </div>
+  <div class="content">
+    <div class="progress-bar"><div class="progress-fill" id="round-progress"></div></div>
+
+    <div class="scenario-box" id="scenario-box">
+      <div class="scenario-label" id="scenario-round-label">Round</div>
+      <div class="scenario-text" id="scenario-text">Generating scenario...</div>
+      <div id="constraints-box" style="display:none;margin-top:14px;padding-top:12px;border-top:1px solid #2a2510;">
+        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold-dim);margin-bottom:6px;">Constraints</div>
+        <div id="constraints-text" style="font-size:13px;color:var(--text-mid);"></div>
+      </div>
+    </div>
+
+    <div class="section-label">Submissions</div>
+    <div id="submission-progress" style="font-size:24px;font-family:'Playfair Display',serif;color:var(--gold);margin-bottom:8px;">0 / 0</div>
+    <div id="submission-list"></div>
+
+    <button class="btn btn-primary" id="all-in-btn" style="margin-top:16px;display:none;" onclick="goToPlayback()">All In — Play Songs →</button>
+  </div>
+</div>
+
+<!-- PLAYBACK -->
+<div id="screen-playback" class="screen">
+  <div class="app-header" style="padding-bottom:10px;">
+    <div class="app-title">Score It!</div>
+    <div id="playback-round-label" class="app-subtitle"></div>
+  </div>
+  <div class="content">
+    <div class="now-playing-card">
+      <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--gold-dim);margin-bottom:10px;" id="now-playing-label">Now Playing</div>
+      <div style="font-family:'Playfair Display',serif;font-size:22px;color:var(--text);margin-bottom:4px;" id="now-playing-song">—</div>
+      <div style="font-size:13px;color:var(--text-dim);" id="now-playing-player">—</div>
+      <div id="now-playing-art-wrap"></div>
+      <div class="timer-bar-wrap"><div class="timer-bar" id="timer-bar"></div></div>
+      <div style="font-size:12px;color:var(--text-dim);" id="timer-label"></div>
+    </div>
+
+    <div id="song-queue"></div>
+
+    <div style="display:flex;gap:10px;margin-bottom:10px;">
+      <button class="btn btn-secondary" id="pause-btn" onclick="togglePause()" style="flex:1;">⏸ Pause</button>
+      <button class="btn btn-secondary" id="restart-btn" onclick="restartSong()" style="flex:1;">↩ Restart</button>
+    </div>
+    <button class="btn btn-secondary" id="skip-btn" onclick="skipSong()">Next Song →</button>
+    <button class="btn btn-primary" id="judge-btn" onclick="judgeRound()" style="display:none;margin-top:10px;">Judge This Round →</button>
+  </div>
+</div>
+
+<!-- VERDICT -->
+<div id="screen-verdict" class="screen">
+  <div class="app-header">
+    <div class="app-title">Verdict</div>
+    <div id="verdict-round-label" class="app-subtitle"></div>
+  </div>
+  <div class="content">
+    <div id="verdict-loading" style="text-align:center;padding:40px 0;display:none;">
+      <div class="loading-dots"><span></span><span></span><span></span></div>
+      <div style="margin-top:14px;font-size:13px;color:var(--text-dim);">The judge is deliberating...</div>
+    </div>
+    <div id="verdict-content" style="display:none;">
+      <div class="verdict-box">
+        <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--gold-dim);margin-bottom:12px;">The Verdict</div>
+        <div style="font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:var(--gold);" id="verdict-winner"></div>
+        <div style="font-size:14px;color:var(--text-dim);font-style:italic;margin-bottom:10px;" id="verdict-song"></div>
+        <div style="font-size:14px;color:var(--text-mid);line-height:1.7;" id="verdict-text"></div>
+      </div>
+      <div id="verdict-ranked" style="display:none;margin-top:16px;">
+        <div class="section-label">Full Ranking</div>
+        <div id="verdict-ranked-list"></div>
+      </div>
+      <div style="margin-top:20px;">
+        <div class="section-label">Scores</div>
+        <div id="verdict-scores"></div>
+      </div>
+      <button class="btn btn-primary" style="margin-top:20px;" id="next-btn" onclick="nextRound()">Next Round →</button>
+    </div>
+  </div>
+</div>
+
+<!-- FINAL -->
+<div id="screen-final" class="screen">
+  <div class="app-header"><div class="app-title">Game Over</div></div>
+  <div class="content">
+    <div style="font-size:64px;text-align:center;margin:20px 0 10px;">🏆</div>
+    <div style="font-family:'Playfair Display',serif;font-size:40px;font-weight:900;color:var(--gold);text-align:center;" id="final-winner"></div>
+    <div style="text-align:center;color:var(--text-dim);font-size:12px;letter-spacing:2px;text-transform:uppercase;margin:8px 0 32px;">Wins the room</div>
+    <div class="section-label">Final Scores</div>
+    <div id="final-scores"></div>
+    <button class="btn btn-primary" style="margin-top:32px;" onclick="location.href='/host'">Play Again</button>
+  </div>
+</div>
+
+<script>
+// ===================== STATE =====================
+const state = {
+  ws: null,
+  roomCode: null,
+  settings: { difficulty: 'easy', rounds: 5, judgeStyle: 'winner', songDuration: 60 },
+  players: [],
+  scores: {},
+  submissions: {},
+  submissionOrder: [],
+  currentRound: 0,
+  totalRounds: 5,
+  currentScenario: '',
+  currentConstraints: [],
+  spotifyToken: null,
+  spotifyPlayer: null,
+  spotifyDeviceId: null,
+  playbackQueue: [],
+  playbackIndex: 0,
+  isPaused: false,
+  pauseRemaining: 0,
+  playbackTimer: null,
+  audioCtx: null,
+};
+
+// ===================== SCREENS =====================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+// ===================== SETTINGS =====================
+let rounds = 5;
+function adjustRounds(d) {
+  rounds = Math.max(1, Math.min(20, rounds + d));
+  document.getElementById('rounds-display').textContent = rounds;
+  state.settings.rounds = rounds;
+}
+function selectDiff(el) {
+  document.querySelectorAll('[data-diff]').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  state.settings.difficulty = el.dataset.diff;
+}
+function selectJudge(el) {
+  document.querySelectorAll('[data-judge]').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  state.settings.judgeStyle = el.dataset.judge;
+}
+function selectDur(el) {
+  document.querySelectorAll('[data-dur]').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  state.settings.songDuration = parseInt(el.dataset.dur);
+}
+
+// ===================== SPOTIFY =====================
+window.onSpotifyWebPlaybackSDKReady = () => {
+  if (state.spotifyToken) initSpotifyPlayer();
+};
+
+function getAudioCtx() {
+  if (!state.audioCtx) state.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (state.audioCtx.state === 'suspended') state.audioCtx.resume();
+  return state.audioCtx;
+}
+
+function generateRandomString(len) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const arr = new Uint8Array(len);
+  crypto.getRandomValues(arr);
+  return Array.from(arr).map(b => chars[b % chars.length]).join('');
+}
+
+async function generateCodeChallenge(verifier) {
+  const data = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+async function connectSpotify() {
+  try { getAudioCtx(); } catch(e) {}
+  const verifier = generateRandomString(64);
+  const challenge = await generateCodeChallenge(verifier);
+  sessionStorage.setItem('spotify_verifier', verifier);
+  const REDIRECT_URI = window.location.origin + '/host';
+  const SCOPES = 'streaming user-read-email user-read-private user-read-playback-state user-modify-playback-state';
+  const CLIENT_ID = window._spotifyClientId || '';
+  const params = new URLSearchParams({
+    client_id: CLIENT_ID,
+    response_type: 'code',
+    redirect_uri: REDIRECT_URI,
+    scope: SCOPES,
+    code_challenge_method: 'S256',
+    code_challenge: challenge,
+  });
+  window.location.href = `https://accounts.spotify.com/authorize?${params}`;
+}
+
+async function exchangeCode(code) {
+  const verifier = sessionStorage.getItem('spotify_verifier');
+  if (!verifier) return;
+  const REDIRECT_URI = window.location.origin + '/host';
+  const CLIENT_ID = window._spotifyClientId || '';
+  const body = new URLSearchParams({
+    client_id: CLIENT_ID,
+    grant_type: 'authorization_code',
+    code,
+    redirect_uri: REDIRECT_URI,
+    code_verifier: verifier,
+  });
+  const res = await fetch('https://accounts.spotify.com/api/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+  const data = await res.json();
+  if (data.access_token) {
+    state.spotifyToken = data.access_token;
+    localStorage.setItem('spotify_token', data.access_token);
+    if (data.refresh_token) localStorage.setItem('spotify_refresh', data.refresh_token);
+    sessionStorage.removeItem('spotify_verifier');
+    window.history.replaceState({}, document.title, '/host');
+    initSpotifyPlayer();
+  }
+}
+
+function initSpotifyPlayer() {
+  if (!state.spotifyToken || !window.Spotify || state.spotifyPlayer) return;
+  const player = new Spotify.Player({
+    name: 'Score It!',
+    getOAuthToken: cb => cb(state.spotifyToken),
+    volume: 0.8,
+  });
+  player.addListener('ready', ({ device_id }) => {
+    state.spotifyDeviceId = device_id;
+    state.spotifyPlayer = player;
+    updateSpotifyUI();
+  });
+  player.addListener('not_ready', () => { state.spotifyDeviceId = null; updateSpotifyUI(); });
+  player.addListener('authentication_error', () => { state.spotifyToken = null; updateSpotifyUI(); });
+  player.addListener('account_error', () => alert('Spotify Premium required.'));
+  player.connect();
+}
+
+function updateSpotifyUI() {
+  const dot = document.getElementById('spotify-dot');
+  const text = document.getElementById('spotify-status-text');
+  const btn = document.getElementById('spotify-connect-btn');
+  if (state.spotifyDeviceId) {
+    dot.style.background = '#1DB954';
+    text.textContent = 'Connected — Score It! player ready';
+    btn.style.display = 'none';
+  } else if (state.spotifyToken) {
+    dot.style.background = '#c9a84c';
+    text.textContent = 'Connecting Spotify player...';
+    btn.style.display = 'none';
+  } else {
+    dot.style.background = 'var(--text-dim)';
+    text.textContent = 'Not connected';
+    btn.style.display = 'block';
+  }
+}
+
+// ===================== WEBSOCKET =====================
+function connectWS(onOpen) {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  state.ws = new WebSocket(`${proto}://${location.host}`);
+  state.ws.onopen = onOpen;
+  state.ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+  state.ws.onclose = () => {
+    setTimeout(() => { if (state.roomCode) connectWS(() => reconnectHost()); }, 2000);
+  };
+}
+
+function send(msg) {
+  if (state.ws && state.ws.readyState === 1) state.ws.send(JSON.stringify(msg));
+}
+
+function reconnectHost() {
+  // Just notify — room may have been cleaned up
+  console.log('Reconnected to server');
+}
+
+// ===================== CREATE ROOM =====================
+function createRoom() {
+  connectWS(() => {
+    send({ type: 'host_create' });
+    send({ type: 'host_settings', settings: state.settings });
+  });
+}
+
+// ===================== MESSAGE HANDLER =====================
+function handleMessage(msg) {
+  switch (msg.type) {
+
+    case 'room_created':
+      state.roomCode = msg.code;
+      document.getElementById('room-code-display').textContent = msg.code;
+      showScreen('screen-lobby');
+      break;
+
+    case 'player_joined':
+      state.players = msg.playerCount ? state.players : [];
+      if (!state.players.includes(msg.name)) state.players.push(msg.name);
+      renderLobbyPlayers();
+      document.getElementById('start-btn').disabled = state.players.length < 2;
+      break;
+
+    case 'player_left':
+      state.players = state.players.filter(p => p !== msg.name);
+      renderLobbyPlayers();
+      document.getElementById('start-btn').disabled = state.players.length < 2;
+      break;
+
+    case 'round_start':
+      state.currentRound = msg.round;
+      state.totalRounds = msg.rounds;
+      state.submissions = {};
+      state.submissionOrder = [...state.players];
+      document.getElementById('round-label').textContent = `Round ${msg.round} of ${msg.rounds}`;
+      document.getElementById('round-progress').style.width = `${((msg.round-1)/msg.rounds)*100}%`;
+      document.getElementById('scenario-text').textContent = 'Generating scenario...';
+      document.getElementById('constraints-box').style.display = 'none';
+      document.getElementById('submission-progress').textContent = `0 / ${state.players.length}`;
+      document.getElementById('all-in-btn').style.display = 'none';
+      renderSubmissionList();
+      showScreen('screen-round');
+      break;
+
+    case 'scenario':
+      state.currentScenario = msg.scenario;
+      state.currentConstraints = msg.constraints || [];
+      document.getElementById('scenario-text').textContent = msg.scenario;
+      document.getElementById('scenario-round-label').textContent = `Round ${msg.round} of ${msg.rounds}`;
+      if (msg.constraints && msg.constraints.length > 0) {
+        document.getElementById('constraints-box').style.display = 'block';
+        document.getElementById('constraints-text').textContent = msg.constraints.map(c => `• ${c}`).join('\n');
+      }
+      break;
+
+    case 'submission_received':
+      if (msg.playerName) {
+        state.submissions[msg.playerName] = { submitted: true };
+      }
+      document.getElementById('submission-progress').textContent = `${msg.submitted} / ${msg.total}`;
+      renderSubmissionList();
+      if (msg.allIn) {
+        if (msg.submissions) state.submissions = msg.submissions;
+        document.getElementById('all-in-btn').style.display = 'block';
+        playChime('next');
+      }
+      break;
+
+    case 'submission_count':
+      document.getElementById('submission-progress').textContent = `${msg.submitted} / ${msg.total}`;
+      break;
+
+    case 'judging_start':
+      showScreen('screen-verdict');
+      document.getElementById('verdict-loading').style.display = 'block';
+      document.getElementById('verdict-content').style.display = 'none';
+      document.getElementById('verdict-round-label').textContent = `Round ${state.currentRound} of ${state.totalRounds}`;
+      break;
+
+    case 'verdict':
+      if (msg.submissions) state.submissions = msg.submissions;
+      renderVerdict(msg.verdict, msg.scores, msg.isLastRound);
+      break;
+
+    case 'game_over':
+      showFinal(msg.winner, msg.scores);
+      break;
+
+    case 'error':
+      alert(msg.message);
+      break;
+  }
+}
+
+// ===================== LOBBY =====================
+function renderLobbyPlayers() {
+  const list = document.getElementById('player-list');
+  list.innerHTML = state.players.map(p => `
+    <div class="player-chip">
+      <span style="font-size:15px;">${p}</span>
+      <span style="font-size:12px;color:var(--text-dim);">ready</span>
+    </div>
+  `).join('');
+  document.getElementById('player-count-badge').textContent = `(${state.players.length})`;
+}
+
+function startGame() {
+  send({ type: 'host_start' });
+}
+
+// ===================== SUBMISSIONS =====================
+function renderSubmissionList() {
+  const list = document.getElementById('submission-list');
+  list.innerHTML = state.players.map(p => {
+    const submitted = !!state.submissions[p];
+    return `
+      <div class="queue-item" style="background:${submitted ? '#0e1a0e' : 'var(--surface)'};border-color:${submitted ? '#2a4a2a' : 'var(--border)'};">
+        <div style="font-size:18px;">${submitted ? '✓' : '○'}</div>
+        <div style="flex:1;">
+          <div style="font-size:14px;color:${submitted ? 'var(--green)' : 'var(--text-dim)'};">${p}</div>
+          <div style="font-size:12px;color:var(--text-dim);">${submitted ? 'locked in' : 'thinking...'}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ===================== PLAYBACK =====================
+function goToPlayback() {
+  state.playbackQueue = [...state.players].sort(() => Math.random() - 0.5);
+  state.playbackIndex = 0;
+  state.isPaused = false;
+
+  document.getElementById('playback-round-label').textContent = `Round ${state.currentRound} of ${state.totalRounds}`;
+  document.getElementById('judge-btn').style.display = 'none';
+  document.getElementById('skip-btn').style.display = 'block';
+  document.getElementById('pause-btn').style.display = 'block';
+  document.getElementById('restart-btn').style.display = 'block';
+
+  showScreen('screen-playback');
+  renderPlaybackQueue();
+  playCurrentSong();
+}
+
+function renderPlaybackQueue() {
+  const queue = document.getElementById('song-queue');
+  queue.innerHTML = state.playbackQueue.map((p, i) => {
+    const played = i < state.playbackIndex;
+    const current = i === state.playbackIndex;
+    const sub = state.submissions[p];
+    const songDisplay = (played || current) ? (sub?.trackName || sub?.song || '—') : '🎵 Hidden';
+    return `
+      <div class="queue-item" style="
+        background:${current ? '#1a1a0e' : 'var(--surface)'};
+        border-color:${current ? 'var(--gold-dim)' : 'var(--border)'};
+        opacity:${played ? 0.4 : 1};
+      ">
+        <div style="font-size:18px;">${played ? '✓' : current ? '▶' : '○'}</div>
+        <div style="flex:1;">
+          <div style="font-size:14px;color:${current ? 'var(--gold)' : 'var(--text)'};">${current || played ? songDisplay : '—'}</div>
+          <div style="font-size:12px;color:var(--text-dim);">${p}${!current && !played ? ' · up next' : ''}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function playCurrentSong() {
+  if (state.playbackIndex >= state.playbackQueue.length) { finishPlayback(); return; }
+  clearTimeout(state.playbackTimer);
+  clearInterval(state.playbackTimer);
+  state.isPaused = false;
+  document.getElementById('pause-btn').textContent = '⏸ Pause';
+
+  const player = state.playbackQueue[state.playbackIndex];
+  const sub = state.submissions[player];
+  const song = sub?.trackName || sub?.song || '—';
+  const artist = sub?.artistName || '';
+  const albumArt = sub?.albumArt || '';
+
+  document.getElementById('now-playing-song').textContent = song;
+  document.getElementById('now-playing-player').textContent = artist ? `${artist} · ${player}` : player;
+  document.getElementById('now-playing-label').textContent = `${state.playbackIndex + 1} of ${state.playbackQueue.length}`;
+
+  const artWrap = document.getElementById('now-playing-art-wrap');
+  artWrap.innerHTML = albumArt ? `<img src="${albumArt}" style="width:80px;height:80px;border-radius:8px;margin:12px auto 0;display:block;">` : '';
+
+  renderPlaybackQueue();
+
+  // Play on Spotify
+  if (state.spotifyToken && state.spotifyDeviceId && sub?.trackUri) {
+    fetch(`https://api.spotify.com/v1/me/player/play?device_id=${state.spotifyDeviceId}`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${state.spotifyToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uris: [sub.trackUri], position_ms: 0 }),
+    }).catch(() => {});
+  }
+
+  const dur = state.settings.songDuration;
+  const isLast = state.playbackIndex >= state.playbackQueue.length - 1;
+  const timerBar = document.getElementById('timer-bar');
+  const timerLabel = document.getElementById('timer-label');
+
+  if (dur === 0) {
+    timerBar.style.width = '100%';
+    timerLabel.textContent = 'Playing';
+    document.getElementById('skip-btn').textContent = 'Next Song →';
+    // Poll Spotify for track end
+    if (state.spotifyToken) {
+      let polls = 0;
+      const poll = setInterval(async () => {
+        if (state.isPaused) return;
+        if (++polls > 180) { clearInterval(poll); return; }
+        try {
+          const res = await fetch('https://api.spotify.com/v1/me/player', { headers: { 'Authorization': `Bearer ${state.spotifyToken}` } });
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data && !data.is_playing && data.progress_ms > 5000) {
+            clearInterval(poll);
+            if (!state.isPaused) {
+              isLast ? (await playChime('judge'), finishPlayback()) : (await playChime('next'), state.playbackIndex++, playCurrentSong());
+            }
+          }
+        } catch(e) {}
+      }, 2000);
+      state.playbackTimer = poll;
+    }
+    return;
+  }
+
+  state.pauseRemaining = dur;
+  timerBar.style.transition = 'none';
+  timerBar.style.width = '100%';
+  void timerBar.offsetWidth;
+  timerBar.style.transition = `width ${dur}s linear`;
+  timerBar.style.width = '0%';
+  timerLabel.textContent = formatTime(dur);
+  document.getElementById('skip-btn').textContent = 'Next Song →';
+
+  let remaining = dur;
+  const tick = setInterval(() => {
+    if (!state.isPaused) {
+      remaining--;
+      state.pauseRemaining = remaining;
+      timerLabel.textContent = formatTime(Math.max(0, remaining));
+      if (remaining <= 0) clearInterval(tick);
+    }
+  }, 1000);
+
+  state.playbackTimer = setTimeout(async () => {
+    clearInterval(tick);
+    if (!state.isPaused) {
+      spotifyPause();
+      isLast ? (await playChime('judge'), finishPlayback()) : (await playChime('next'), state.playbackIndex++, playCurrentSong());
+    }
+  }, dur * 1000);
+}
+
+function spotifyPause() {
+  if (state.spotifyPlayer) state.spotifyPlayer.pause();
+}
+function spotifyResume() {
+  if (state.spotifyPlayer) state.spotifyPlayer.resume();
+}
+
+function togglePause() {
+  const btn = document.getElementById('pause-btn');
+  if (state.isPaused) {
+    state.isPaused = false;
+    btn.textContent = '⏸ Pause';
+    spotifyResume();
+    const remaining = state.pauseRemaining;
+    if (state.settings.songDuration > 0 && remaining > 0) {
+      const timerBar = document.getElementById('timer-bar');
+      void timerBar.offsetWidth;
+      timerBar.style.transition = `width ${remaining}s linear`;
+      timerBar.style.width = '0%';
+      const isLast = state.playbackIndex >= state.playbackQueue.length - 1;
+      const tick = setInterval(() => {
+        if (!state.isPaused) {
+          state.pauseRemaining--;
+          document.getElementById('timer-label').textContent = formatTime(Math.max(0, state.pauseRemaining));
+          if (state.pauseRemaining <= 0) clearInterval(tick);
+        }
+      }, 1000);
+      state.playbackTimer = setTimeout(async () => {
+        clearInterval(tick);
+        if (!state.isPaused) {
+          spotifyPause();
+          isLast ? (await playChime('judge'), finishPlayback()) : (await playChime('next'), state.playbackIndex++, playCurrentSong());
+        }
+      }, remaining * 1000);
+    }
+  } else {
+    state.isPaused = true;
+    btn.textContent = '▶ Resume';
+    clearTimeout(state.playbackTimer);
+    clearInterval(state.playbackTimer);
+    spotifyPause();
+    document.getElementById('timer-bar').style.transition = 'none';
+  }
+}
+
+function restartSong() {
+  clearTimeout(state.playbackTimer);
+  clearInterval(state.playbackTimer);
+  playCurrentSong();
+}
+
+function skipSong() {
+  clearTimeout(state.playbackTimer);
+  clearInterval(state.playbackTimer);
+  spotifyPause();
+  state.playbackIndex++;
+  const isLast = state.playbackIndex >= state.playbackQueue.length;
+  isLast ? playChime('judge').then(() => finishPlayback()) : playChime('next').then(() => playCurrentSong());
+}
+
+function finishPlayback() {
+  spotifyPause();
+  document.getElementById('now-playing-song').textContent = 'All songs played';
+  document.getElementById('now-playing-player').textContent = '';
+  document.getElementById('now-playing-label').textContent = 'Ready to judge';
+  document.getElementById('now-playing-art-wrap').innerHTML = '';
+  document.getElementById('timer-bar').style.cssText = 'height:100%;background:var(--gold);border-radius:2px;width:100%;transition:none;';
+  document.getElementById('timer-label').textContent = '';
+  document.getElementById('skip-btn').style.display = 'none';
+  document.getElementById('pause-btn').style.display = 'none';
+  document.getElementById('restart-btn').style.display = 'none';
+  document.getElementById('judge-btn').style.display = 'block';
+  renderPlaybackQueue();
+}
+
+function judgeRound() {
+  send({ type: 'host_judge' });
+}
+
+// ===================== VERDICT =====================
+function renderVerdict(verdict, scores, isLastRound) {
+  state.scores = scores;
+  document.getElementById('verdict-loading').style.display = 'none';
+  document.getElementById('verdict-content').style.display = 'block';
+
+  const isRanked = verdict.ranking;
+  if (isRanked) {
+    const winner = verdict.ranking[0];
+    document.getElementById('verdict-winner').textContent = winner.player;
+    document.getElementById('verdict-song').textContent = `"${winner.song}"`;
+    document.getElementById('verdict-text').textContent = verdict.reasoning || '';
+    document.getElementById('verdict-ranked').style.display = 'block';
+    document.getElementById('verdict-ranked-list').innerHTML = verdict.ranking.map((e, i) => `
+      <div class="ranked-entry ${i === 0 ? 'winner' : ''}">
+        <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px;">
+          <span style="font-family:'Playfair Display',serif;font-size:20px;color:${i === 0 ? 'var(--gold)' : 'var(--text-dim)'};">#${i+1}</span>
+          <span style="font-size:15px;">${e.player}</span>
+          <span style="font-size:13px;color:var(--text-dim);font-style:italic;">"${e.song}"</span>
+        </div>
+        <div style="font-size:13px;color:var(--text-mid);line-height:1.5;">${e.reason}</div>
+      </div>
+    `).join('');
+  } else {
+    document.getElementById('verdict-winner').textContent = verdict.winner || '—';
+    const sub = state.submissions[verdict.winner];
+    document.getElementById('verdict-song').textContent = sub ? `"${sub.trackName || sub.song}"` : '';
+    document.getElementById('verdict-text').textContent = verdict.reasoning || '';
+    document.getElementById('verdict-ranked').style.display = 'none';
+  }
+
+  const sorted = Object.entries(scores).sort((a,b) => b[1]-a[1]);
+  document.getElementById('verdict-scores').innerHTML = sorted.map(([p, pts], i) => `
+    <div class="score-row ${i === 0 ? 'leader' : ''}">
+      <div style="width:24px;font-size:12px;color:var(--text-dim);">${i+1}</div>
+      <div style="flex:1;font-size:16px;">${p}</div>
+      <div class="score-pts">${pts}</div>
+    </div>
+  `).join('');
+
+  document.getElementById('next-btn').textContent = isLastRound ? 'Final Scores →' : 'Next Round →';
+  document.getElementById('verdict-round-label').textContent = `Round ${state.currentRound} of ${state.totalRounds}`;
+  showScreen('screen-verdict');
+}
+
+function nextRound() {
+  send({ type: 'host_next_round' });
+}
+
+function showFinal(winner, scores) {
+  document.getElementById('final-winner').textContent = winner;
+  const sorted = Object.entries(scores).sort((a,b) => b[1]-a[1]);
+  document.getElementById('final-scores').innerHTML = sorted.map(([p, pts], i) => `
+    <div class="score-row ${i === 0 ? 'leader' : ''}">
+      <div style="width:24px;font-size:12px;color:var(--text-dim);">${i+1}</div>
+      <div style="flex:1;font-size:16px;">${p}</div>
+      <div class="score-pts">${pts}</div>
+    </div>
+  `).join('');
+  showScreen('screen-final');
+}
+
+// ===================== CHIMES =====================
+function playChime(type) {
+  try {
+    const ctx = getAudioCtx();
+    const notes = type === 'judge'
+      ? [{f:523.25,s:0,d:0.4},{f:659.25,s:0.25,d:0.5},{f:783.99,s:0.5,d:0.7}]
+      : [{f:659.25,s:0,d:0.35},{f:880,s:0.2,d:0.4}];
+    notes.forEach(({f,s,d}) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.type = 'sine'; osc.frequency.setValueAtTime(f, ctx.currentTime+s);
+      gain.gain.setValueAtTime(0, ctx.currentTime+s);
+      gain.gain.linearRampToValueAtTime(0.3, ctx.currentTime+s+0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+s+d);
+      osc.start(ctx.currentTime+s); osc.stop(ctx.currentTime+s+d);
+    });
+    return new Promise(r => setTimeout(r, type==='judge'?1200:700));
+  } catch(e) { return Promise.resolve(); }
+}
+
+function formatTime(s) {
+  const m = Math.floor(s/60), sec = s%60;
+  return m > 0 ? `${m}:${sec.toString().padStart(2,'0')}` : `0:${sec.toString().padStart(2,'0')}`;
+}
+
+// ===================== INIT =====================
+window.onload = async () => {
+  // Load config from server
+  const config = await fetch('/api/config').then(r => r.json()).catch(() => ({}));
+  window._spotifyClientId = config.spotifyClientId || '';
+
+  // Check for Spotify callback
+  const urlParams = new URLSearchParams(window.location.search);
+  const code = urlParams.get('code');
+  if (code) {
+    await exchangeCode(code);
+  } else {
+    const saved = localStorage.getItem('spotify_token');
+    if (saved) { state.spotifyToken = saved; }
+  }
+  updateSpotifyUI();
+};
+</script>
+</body>
+</html>

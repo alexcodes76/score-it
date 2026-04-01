@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Score It!</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0a">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body {
+    background: #0a0a0a;
+    color: #f0ece4;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 32px;
+    text-align: center;
+  }
+  .logo { width: 160px; height: 160px; object-fit: contain; margin-bottom: 8px; }
+  .title { font-family: 'Playfair Display', serif; font-size: 48px; font-weight: 900; color: #c9a84c; margin-bottom: 6px; }
+  .subtitle { font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: #7a7268; margin-bottom: 48px; }
+  .tagline { font-family: 'Playfair Display', serif; font-size: 17px; font-style: italic; color: #b0a898; line-height: 1.6; max-width: 280px; margin: 0 auto 48px; }
+  .btn {
+    display: block; width: 100%; max-width: 320px; margin: 0 auto 12px;
+    padding: 18px 24px; border: none; border-radius: 12px;
+    font-family: 'DM Sans', sans-serif; font-size: 16px; font-weight: 500;
+    cursor: pointer; text-decoration: none; text-align: center;
+    transition: all 0.15s ease;
+  }
+  .btn-primary { background: #c9a84c; color: #0a0a0a; }
+  .btn-primary:active { background: #8a6f30; }
+  .btn-secondary { background: #1e1e1e; color: #f0ece4; border: 1px solid #2a2a2a; }
+  .btn-secondary:active { opacity: 0.7; }
+  .note { font-size: 12px; color: #7a7268; margin-top: 24px; line-height: 1.6; max-width: 280px; }
+</style>
+</head>
+<body>
+  <img src="/logo.png" class="logo" alt="Score It!" onerror="this.style.display='none'">
+  <div class="title">Score It!</div>
+  <div class="subtitle">The music judgment game</div>
+  <div class="tagline">The right song for the right moment. You pick. The AI judges.</div>
+
+  <a href="/host" class="btn btn-primary">🎵 Host a Game</a>
+  <a href="/play" class="btn btn-secondary">Join a Game →</a>
+
+  <div class="note">
+    The host controls music and scoring.<br>
+    Players join with a 4-letter room code<br>on their own phones.
+  </div>
+</body>
+</html>

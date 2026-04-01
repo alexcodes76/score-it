@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Score It! — Player</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0a0a">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0a; --surface: #141414; --surface2: #1e1e1e;
+    --border: #2a2a2a; --gold: #c9a84c; --gold-dim: #8a6f30;
+    --text: #f0ece4; --text-dim: #7a7268; --text-mid: #b0a898;
+    --green: #4cac6c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-weight: 300; min-height: 100vh; }
+  .screen { display: none; flex-direction: column; min-height: 100vh; }
+  .screen.active { display: flex; }
+  .app-header { padding: 52px 24px 16px; }
+  .app-title { font-family: 'Playfair Display', serif; font-size: 36px; font-weight: 900; color: var(--gold); }
+  .app-subtitle { font-size: 11px; letter-spacing: 3px; text-transform: uppercase; color: var(--text-dim); margin-top: 4px; }
+  .content { flex: 1; padding: 0 24px 40px; overflow-y: auto; }
+  .section-label { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--text-dim); margin-bottom: 12px; margin-top: 24px; }
+  .btn { display: block; width: 100%; padding: 16px 20px; border: none; border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 500; cursor: pointer; text-align: center; transition: all 0.15s ease; margin-bottom: 10px; }
+  .btn-primary { background: var(--gold); color: #0a0a0a; }
+  .btn-primary:active { background: var(--gold-dim); }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  input[type="text"] { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 16px; font-weight: 300; padding: 14px 16px; outline: none; -webkit-appearance: none; }
+  input:focus { border-color: var(--gold-dim); }
+  .scenario-box { background: #0f0e0b; border: 1px solid var(--gold-dim); border-radius: 14px; padding: 20px; margin-bottom: 16px; position: relative; overflow: hidden; }
+  .scenario-box::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--gold), transparent); }
+  .scenario-label { font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--gold-dim); margin-bottom: 10px; }
+  .scenario-text { font-family: 'Playfair Display', serif; font-size: 18px; font-style: italic; line-height: 1.5; }
+  .track-result { display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 10px; cursor: pointer; transition: border-color 0.15s; }
+  .track-result:active { border-color: var(--gold-dim); }
+  .loading-dots { display: inline-flex; gap: 4px; align-items: center; }
+  .loading-dots span { width: 6px; height: 6px; background: var(--gold); border-radius: 50%; animation: pulse 1.2s ease-in-out infinite; }
+  .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes pulse { 0%,60%,100% { opacity:0.2;transform:scale(0.8); } 30% { opacity:1;transform:scale(1); } }
+  .hint-box { background: #0e1510; border: 1px solid #2a3a2a; border-radius: 10px; padding: 14px 16px; margin-top: 12px; }
+  .hint-line { padding: 4px 0; border-bottom: 1px solid #1a2a1a; font-size: 13px; color: #7ab08a; }
+  .hint-line:last-child { border-bottom: none; }
+  .confirmed-box { background: #0e1a0e; border: 1px solid #2a4a2a; border-radius: 14px; padding: 24px; text-align: center; }
+  .score-row { display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
+  .score-row:last-child { border-bottom: none; }
+  .score-row.leader .score-name { color: var(--gold); }
+  .score-pts { font-family: 'Playfair Display', serif; font-size: 22px; color: var(--gold); }
+  .ranked-entry { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+  .ranked-entry.winner { background: #0f0e0b; border-color: var(--gold-dim); }
+  .error-msg { background: #1a0e0e; border: 1px solid #5a2a2a; border-radius: 10px; padding: 14px; font-size: 13px; color: #c47a7a; margin-top: 10px; display: none; }
+</style>
+</head>
+<body>
+
+<!-- JOIN -->
+<div id="screen-join" class="screen active">
+  <div class="app-header">
+    <div class="app-title">Score It!</div>
+    <div class="app-subtitle">Join a game</div>
+  </div>
+  <div class="content">
+    <div style="text-align:center;padding:20px 0 32px;">
+      <img src="/logo.png" style="width:100px;height:100px;object-fit:contain;" onerror="this.style.display='none'">
+    </div>
+    <div class="section-label">Room Code</div>
+    <input type="text" id="room-code-input" placeholder="ABCD" maxlength="4"
+      style="text-align:center;font-size:32px;font-family:'Playfair Display',serif;letter-spacing:8px;text-transform:uppercase;"
+      oninput="this.value=this.value.toUpperCase()">
+
+    <div class="section-label" style="margin-top:20px;">Your Name</div>
+    <input type="text" id="player-name-input" placeholder="Enter your name" maxlength="20"
+      onkeydown="if(event.key==='Enter') joinGame()">
+
+    <div style="margin-top:16px;display:flex;align-items:center;gap:10px;">
+      <input type="checkbox" id="hints-checkbox" style="width:18px;height:18px;accent-color:var(--gold);">
+      <label for="hints-checkbox" style="font-size:13px;color:var(--text-dim);">I want song hints (good for younger players)</label>
+    </div>
+
+    <div class="error-msg" id="join-error"></div>
+
+    <button class="btn btn-primary" style="margin-top:28px;" onclick="joinGame()">Join Game →</button>
+    <a href="/" class="btn btn-ghost">← Back</a>
+  </div>
+</div>
+
+<!-- WAITING -->
+<div id="screen-waiting" class="screen">
+  <div class="app-header">
+    <div class="app-title" id="waiting-name"></div>
+    <div class="app-subtitle" id="waiting-room"></div>
+  </div>
+  <div class="content" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;">
+    <div class="loading-dots" style="justify-content:center;"><span></span><span></span><span></span></div>
+    <div style="margin-top:20px;font-size:15px;color:var(--text-mid);">Waiting for the host to start...</div>
+    <div style="margin-top:8px;font-size:13px;color:var(--text-dim);">Get ready to pick your songs.</div>
+  </div>
+</div>
+
+<!-- SUBMIT -->
+<div id="screen-submit" class="screen">
+  <div class="app-header" style="padding-bottom:10px;">
+    <div class="app-title" id="submit-name"></div>
+    <div id="submit-round-label" class="app-subtitle"></div>
+  </div>
+  <div class="content">
+    <div class="scenario-box">
+      <div class="scenario-label" id="submit-scenario-label">The Scenario</div>
+      <div class="scenario-text" id="submit-scenario"></div>
+      <div id="submit-constraints" style="display:none;margin-top:14px;padding-top:12px;border-top:1px solid #2a2510;">
+        <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold-dim);margin-bottom:6px;">Constraints</div>
+        <div id="submit-constraints-text" style="font-size:13px;color:var(--text-mid);"></div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;margin-bottom:12px;">
+      <input type="text" id="search-input" placeholder="Search for a song..."
+        onkeydown="if(event.key==='Enter') searchSongs()"
+        autocomplete="off" autocorrect="off" spellcheck="false" style="flex:1;">
+      <button onclick="searchSongs()" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--gold);padding:0 16px;font-size:20px;cursor:pointer;flex-shrink:0;">🔍</button>
+    </div>
+
+    <div id="search-loading" style="display:none;text-align:center;padding:20px;">
+      <div class="loading-dots" style="justify-content:center;"><span></span><span></span><span></span></div>
+    </div>
+    <div id="search-results"></div>
+
+    <div class="error-msg" id="submit-error"></div>
+
+    <div id="hints-section" style="display:none;">
+      <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold-dim);margin-top:16px;margin-bottom:8px;">💡 Song Suggestions</div>
+      <div id="hints-content">
+        <div class="loading-dots"><span></span><span></span><span></span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONFIRMED -->
+<div id="screen-confirmed" class="screen">
+  <div class="app-header">
+    <div class="app-title" id="confirmed-name"></div>
+    <div class="app-subtitle">Song locked in</div>
+  </div>
+  <div class="content" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;">
+    <div class="confirmed-box" style="width:100%;max-width:320px;">
+      <div style="font-size:32px;margin-bottom:12px;">✓</div>
+      <div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--green);margin-bottom:8px;">Locked In</div>
+      <div style="font-family:'Playfair Display',serif;font-size:20px;margin-bottom:4px;" id="confirmed-song"></div>
+      <div style="font-size:13px;color:var(--text-dim);" id="confirmed-artist"></div>
+    </div>
+    <div style="margin-top:24px;font-size:13px;color:var(--text-dim);">
+      Waiting for other players...<br>
+      <span id="confirmed-count" style="color:var(--gold-dim);"></span>
+    </div>
+  </div>
+</div>
+
+<!-- VERDICT -->
+<div id="screen-verdict" class="screen">
+  <div class="app-header">
+    <div class="app-title">Verdict</div>
+    <div id="verdict-round-label" class="app-subtitle"></div>
+  </div>
+  <div class="content">
+    <div id="verdict-loading" style="text-align:center;padding:40px 0;display:none;">
+      <div class="loading-dots" style="justify-content:center;"><span></span><span></span><span></span></div>
+      <div style="margin-top:14px;font-size:13px;color:var(--text-dim);">The judge is deliberating...</div>
+    </div>
+    <div id="verdict-content" style="display:none;">
+      <div class="scenario-box">
+        <div class="scenario-label">The Verdict</div>
+        <div style="font-family:'Playfair Display',serif;font-size:26px;font-weight:700;color:var(--gold);" id="verdict-winner"></div>
+        <div style="font-size:13px;color:var(--text-dim);font-style:italic;margin-bottom:10px;" id="verdict-song"></div>
+        <div style="font-size:14px;color:var(--text-mid);line-height:1.7;" id="verdict-text"></div>
+      </div>
+      <div id="verdict-ranked" style="display:none;">
+        <div class="section-label">Full Ranking</div>
+        <div id="verdict-ranked-list"></div>
+      </div>
+      <div class="section-label">Scores</div>
+      <div id="verdict-scores"></div>
+      <div style="margin-top:20px;text-align:center;font-size:13px;color:var(--text-dim);" id="next-round-msg">Waiting for host to start next round...</div>
+    </div>
+  </div>
+</div>
+
+<!-- GAME OVER -->
+<div id="screen-gameover" class="screen">
+  <div class="app-header"><div class="app-title">Game Over</div></div>
+  <div class="content">
+    <div style="font-size:64px;text-align:center;margin:20px 0 10px;">🏆</div>
+    <div style="font-family:'Playfair Display',serif;font-size:36px;font-weight:900;color:var(--gold);text-align:center;" id="gameover-winner"></div>
+    <div style="text-align:center;color:var(--text-dim);font-size:12px;letter-spacing:2px;text-transform:uppercase;margin:8px 0 28px;">Wins the room</div>
+    <div class="section-label">Final Scores</div>
+    <div id="gameover-scores"></div>
+    <button class="btn btn-primary" style="margin-top:32px;" onclick="location.href='/play'">Play Again</button>
+  </div>
+</div>
+
+<script>
+const state = {
+  ws: null,
+  name: '',
+  roomCode: '',
+  spotifyToken: null,
+  currentRound: 0,
+  totalRounds: 0,
+  currentScenario: '',
+  currentConstraints: [],
+  wantsHints: false,
+  submitted: false,
+};
+
+// ===================== SCREENS =====================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function showError(elId, msg) {
+  const el = document.getElementById(elId);
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 4000);
+}
+
+// ===================== WEBSOCKET =====================
+function connectWS(onOpen) {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  state.ws = new WebSocket(`${proto}://${location.host}`);
+  state.ws.onopen = onOpen;
+  state.ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+  state.ws.onclose = () => {
+    setTimeout(() => connectWS(() => rejoin()), 2000);
+  };
+}
+
+function send(msg) {
+  if (state.ws && state.ws.readyState === 1) state.ws.send(JSON.stringify(msg));
+}
+
+function rejoin() {
+  if (state.name && state.roomCode) {
+    send({ type: 'player_join', code: state.roomCode, name: state.name, wantsHints: state.wantsHints });
+  }
+}
+
+// ===================== JOIN =====================
+function joinGame() {
+  const code = document.getElementById('room-code-input').value.trim().toUpperCase();
+  const name = document.getElementById('player-name-input').value.trim();
+  const hints = document.getElementById('hints-checkbox').checked;
+
+  if (!code || code.length < 4) { showError('join-error', 'Enter the 4-letter room code.'); return; }
+  if (!name) { showError('join-error', 'Enter your name.'); return; }
+
+  state.name = name;
+  state.roomCode = code;
+  state.wantsHints = hints;
+
+  connectWS(() => {
+    send({ type: 'player_join', code, name, wantsHints: hints });
+  });
+}
+
+// ===================== MESSAGE HANDLER =====================
+function handleMessage(msg) {
+  switch (msg.type) {
+    case 'joined':
+      document.getElementById('waiting-name').textContent = msg.name;
+      document.getElementById('waiting-room').textContent = `Room: ${msg.code}`;
+      // Authenticate Spotify
+      const savedToken = localStorage.getItem('spotify_token');
+      if (savedToken) state.spotifyToken = savedToken;
+      showScreen('screen-waiting');
+      break;
+
+    case 'round_start':
+      state.currentRound = msg.round;
+      state.totalRounds = msg.rounds;
+      state.submitted = false;
+      document.getElementById('submit-name').textContent = state.name;
+      document.getElementById('submit-round-label').textContent = `Round ${msg.round} of ${msg.rounds}`;
+      document.getElementById('submit-scenario').textContent = 'Loading scenario...';
+      document.getElementById('submit-constraints').style.display = 'none';
+      document.getElementById('search-input').value = '';
+      document.getElementById('search-results').innerHTML = '';
+      document.getElementById('hints-section').style.display = 'none';
+      showScreen('screen-submit');
+      break;
+
+    case 'scenario':
+      state.currentScenario = msg.scenario;
+      state.currentConstraints = msg.constraints || [];
+      document.getElementById('submit-scenario').textContent = msg.scenario;
+      document.getElementById('submit-scenario-label').textContent =
+        msg.constraints?.length ? 'The Scenario' : 'The Scenario';
+      if (msg.constraints && msg.constraints.length > 0) {
+        document.getElementById('submit-constraints').style.display = 'block';
+        document.getElementById('submit-constraints-text').textContent = msg.constraints.map(c => `• ${c}`).join('\n');
+      }
+      break;
+
+    case 'hints':
+      const hintsSection = document.getElementById('hints-section');
+      hintsSection.style.display = 'block';
+      const hintLines = (msg.hints || '').split('\n').filter(Boolean).slice(0, 3);
+      document.getElementById('hints-content').innerHTML = hintLines.map(h =>
+        `<div class="hint-line">${h}</div>`
+      ).join('');
+      break;
+
+    case 'submission_count':
+      if (state.submitted) {
+        document.getElementById('confirmed-count').textContent = `${msg.submitted} of ${msg.total} players done`;
+      }
+      break;
+
+    case 'submission_confirmed':
+      // Already handled in confirmTrack
+      break;
+
+    case 'judging_start':
+      showScreen('screen-verdict');
+      document.getElementById('verdict-loading').style.display = 'block';
+      document.getElementById('verdict-content').style.display = 'none';
+      document.getElementById('verdict-round-label').textContent = `Round ${state.currentRound} of ${state.totalRounds}`;
+      break;
+
+    case 'verdict':
+      renderVerdict(msg.verdict, msg.scores, msg.isLastRound);
+      break;
+
+    case 'game_over':
+      showGameOver(msg.winner, msg.scores);
+      break;
+
+    case 'host_left':
+      alert('The host disconnected. The game has ended.');
+      location.href = '/';
+      break;
+
+    case 'error':
+      showError('join-error', msg.message);
+      showError('submit-error', msg.message);
+      break;
+  }
+}
+
+// ===================== SPOTIFY SEARCH =====================
+async function searchSongs() {
+  const query = document.getElementById('search-input').value.trim();
+  if (!query) return;
+
+  // Get fresh token if needed
+  const token = state.spotifyToken || localStorage.getItem('spotify_token');
+  if (!token) {
+    showError('submit-error', 'Spotify not connected — ask the host to share their session, or search by name only.');
+    return;
+  }
+  state.spotifyToken = token;
+
+  document.getElementById('search-loading').style.display = 'block';
+  document.getElementById('search-results').innerHTML = '';
+
+  try {
+    const res = await fetch(
+      `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=5`,
+      { headers: { 'Authorization': `Bearer ${token}` } }
+    );
+    if (res.status === 401) {
+      showError('submit-error', 'Spotify session expired. Please ask the host to reconnect.');
+      document.getElementById('search-loading').style.display = 'none';
+      return;
+    }
+    const data = await res.json();
+    const tracks = data.tracks?.items || [];
+    document.getElementById('search-loading').style.display = 'none';
+    renderSearchResults(tracks);
+  } catch(e) {
+    document.getElementById('search-loading').style.display = 'none';
+    showError('submit-error', 'Search failed. Check your connection.');
+  }
+}
+
+function renderSearchResults(tracks) {
+  if (!tracks.length) {
+    document.getElementById('search-results').innerHTML =
+      `<div style="color:var(--text-dim);font-size:13px;padding:12px 0;">No results. Try a different search.</div>`;
+    return;
+  }
+  window._searchTracks = tracks;
+  document.getElementById('search-results').innerHTML = tracks.map((t, i) => `
+    <div class="track-result" onclick="confirmTrack(${i})">
+      ${t.album.images[2] ? `<img src="${t.album.images[2].url}" style="width:48px;height:48px;border-radius:6px;flex-shrink:0;">` : '<div style="width:48px;height:48px;background:var(--surface2);border-radius:6px;flex-shrink:0;"></div>'}
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.name}</div>
+        <div style="font-size:12px;color:var(--text-dim);margin-top:2px;">${t.artists.map(a=>a.name).join(', ')} · ${t.album.name}</div>
+      </div>
+      <div style="color:var(--gold);font-size:20px;flex-shrink:0;">›</div>
+    </div>
+  `).join('');
+}
+
+function confirmTrack(idx) {
+  const track = window._searchTracks[idx];
+  const song = `${track.name} — ${track.artists.map(a=>a.name).join(', ')}`;
+
+  send({
+    type: 'player_submit',
+    song,
+    trackUri: track.uri,
+    trackName: track.name,
+    artistName: track.artists.map(a=>a.name).join(', '),
+    albumArt: track.album.images[1]?.url || track.album.images[0]?.url || '',
+  });
+
+  state.submitted = true;
+
+  // Show confirmed screen
+  document.getElementById('confirmed-name').textContent = state.name;
+  document.getElementById('confirmed-song').textContent = track.name;
+  document.getElementById('confirmed-artist').textContent = track.artists.map(a=>a.name).join(', ');
+  showScreen('screen-confirmed');
+}
+
+// ===================== VERDICT =====================
+function renderVerdict(verdict, scores, isLastRound) {
+  document.getElementById('verdict-loading').style.display = 'none';
+  document.getElementById('verdict-content').style.display = 'block';
+
+  const isRanked = verdict.ranking;
+  if (isRanked) {
+    const winner = verdict.ranking[0];
+    document.getElementById('verdict-winner').textContent = winner.player;
+    document.getElementById('verdict-song').textContent = `"${winner.song}"`;
+    document.getElementById('verdict-text').textContent = verdict.reasoning || '';
+    document.getElementById('verdict-ranked').style.display = 'block';
+    document.getElementById('verdict-ranked-list').innerHTML = verdict.ranking.map((e, i) => `
+      <div class="ranked-entry ${i === 0 ? 'winner' : ''}">
+        <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px;">
+          <span style="font-family:'Playfair Display',serif;font-size:18px;color:${i === 0 ? 'var(--gold)' : 'var(--text-dim)'};">#${i+1}</span>
+          <span style="font-size:14px;">${e.player}</span>
+          <span style="font-size:12px;color:var(--text-dim);font-style:italic;">"${e.song}"</span>
+        </div>
+        <div style="font-size:13px;color:var(--text-mid);line-height:1.5;">${e.reason}</div>
+      </div>
+    `).join('');
+  } else {
+    document.getElementById('verdict-winner').textContent = verdict.winner || '—';
+    document.getElementById('verdict-song').textContent = verdict.winner ? `"${verdict.winner}'s pick"` : '';
+    document.getElementById('verdict-text').textContent = verdict.reasoning || '';
+    document.getElementById('verdict-ranked').style.display = 'none';
+  }
+
+  const sorted = Object.entries(scores).sort((a,b) => b[1]-a[1]);
+  document.getElementById('verdict-scores').innerHTML = sorted.map(([p, pts], i) => `
+    <div class="score-row ${i === 0 ? 'leader' : ''}">
+      <div style="width:24px;font-size:12px;color:var(--text-dim);">${i+1}</div>
+      <div class="score-name" style="flex:1;font-size:15px;">${p}</div>
+      <div class="score-pts">${pts}</div>
+    </div>
+  `).join('');
+
+  document.getElementById('next-round-msg').textContent = isLastRound
+    ? 'Game over — waiting for host...'
+    : 'Waiting for host to start next round...';
+
+  document.getElementById('verdict-round-label').textContent = `Round ${state.currentRound} of ${state.totalRounds}`;
+  showScreen('screen-verdict');
+}
+
+function showGameOver(winner, scores) {
+  document.getElementById('gameover-winner').textContent = winner;
+  const sorted = Object.entries(scores).sort((a,b) => b[1]-a[1]);
+  document.getElementById('gameover-scores').innerHTML = sorted.map(([p, pts], i) => `
+    <div class="score-row ${i === 0 ? 'leader' : ''}">
+      <div style="width:24px;font-size:12px;color:var(--text-dim);">${i+1}</div>
+      <div class="score-name" style="flex:1;font-size:15px;">${p}</div>
+      <div class="score-pts">${pts}</div>
+    </div>
+  `).join('');
+  showScreen('screen-gameover');
+}
+
+// ===================== INIT =====================
+window.onload = () => {
+  const saved = localStorage.getItem('spotify_token');
+  if (saved) state.spotifyToken = saved;
+};
+</script>
+</body>
+</html>
