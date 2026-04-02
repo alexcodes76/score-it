@@ -168,6 +168,24 @@
     <div id="submission-progress" style="font-size:24px;font-family:'Playfair Display',serif;color:var(--gold);margin-bottom:8px;">0 / 0</div>
     <div id="submission-list"></div>
 
+    <!-- Host's own submission -->
+    <div id="host-submission-area" style="margin-top:16px;display:none;">
+      <div class="section-label">Your Pick</div>
+      <div style="display:flex;gap:10px;margin-bottom:10px;">
+        <input type="text" id="host-search-input" placeholder="Search for your song..."
+          onkeydown="if(event.key==='Enter') hostSearchSongs()"
+          autocomplete="off" autocorrect="off" spellcheck="false" style="flex:1;">
+        <button onclick="hostSearchSongs()" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--gold);padding:0 16px;font-size:20px;cursor:pointer;flex-shrink:0;">🔍</button>
+      </div>
+      <div id="host-search-loading" style="display:none;text-align:center;padding:12px;">
+        <div class="loading-dots" style="justify-content:center;"><span></span><span></span><span></span></div>
+      </div>
+      <div id="host-search-results"></div>
+      <div id="host-submission-confirmed" style="display:none;background:#0e1a0e;border:1px solid #2a4a2a;border-radius:10px;padding:14px;font-size:14px;color:var(--green);">
+        ✓ <span id="host-submission-song"></span>
+      </div>
+    </div>
+
     <button class="btn btn-primary" id="all-in-btn" style="margin-top:16px;display:none;" onclick="goToPlayback()">All In — Play Songs →</button>
   </div>
 </div>
@@ -449,16 +467,15 @@ function handleMessage(msg) {
       break;
 
     case 'player_joined':
-      state.players = msg.playerCount ? state.players : [];
       if (!state.players.includes(msg.name)) state.players.push(msg.name);
       renderLobbyPlayers();
-      document.getElementById('start-btn').disabled = state.players.length < 2;
+      document.getElementById('start-btn').disabled = state.players.length < 1;
       break;
 
     case 'player_left':
       state.players = state.players.filter(p => p !== msg.name);
       renderLobbyPlayers();
-      document.getElementById('start-btn').disabled = state.players.length < 2;
+      document.getElementById('start-btn').disabled = state.players.length < 1;
       break;
 
     case 'round_start':
@@ -470,8 +487,13 @@ function handleMessage(msg) {
       document.getElementById('round-progress').style.width = `${((msg.round-1)/msg.rounds)*100}%`;
       document.getElementById('scenario-text').textContent = 'Generating scenario...';
       document.getElementById('constraints-box').style.display = 'none';
-      document.getElementById('submission-progress').textContent = `0 / ${state.players.length}`;
+      document.getElementById('submission-progress').textContent = `0 / ${state.players.length + 1}`;
       document.getElementById('all-in-btn').style.display = 'none';
+      document.getElementById('host-submission-area').style.display = 'block';
+      document.getElementById('host-submission-confirmed').style.display = 'none';
+      document.getElementById('host-search-input').disabled = false;
+      document.getElementById('host-search-input').value = '';
+      document.getElementById('host-search-results').innerHTML = '';
       renderSubmissionList();
       showScreen('screen-round');
       break;
@@ -557,6 +579,70 @@ function renderSubmissionList() {
       </div>
     `;
   }).join('');
+}
+
+// ===================== HOST SUBMISSION =====================
+async function hostSearchSongs() {
+  const query = document.getElementById('host-search-input').value.trim();
+  if (!query || !state.spotifyToken) return;
+  document.getElementById('host-search-loading').style.display = 'block';
+  document.getElementById('host-search-results').innerHTML = '';
+  try {
+    const res = await fetch(
+      `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=5`,
+      { headers: { 'Authorization': `Bearer ${state.spotifyToken}` } }
+    );
+    const data = await res.json();
+    const tracks = data.tracks?.items || [];
+    document.getElementById('host-search-loading').style.display = 'none';
+    hostRenderResults(tracks);
+  } catch(e) {
+    document.getElementById('host-search-loading').style.display = 'none';
+  }
+}
+
+function hostRenderResults(tracks) {
+  if (!tracks.length) {
+    document.getElementById('host-search-results').innerHTML =
+      `<div style="color:var(--text-dim);font-size:13px;padding:8px 0;">No results.</div>`;
+    return;
+  }
+  window._hostTracks = tracks;
+  document.getElementById('host-search-results').innerHTML = tracks.map((t, i) => `
+    <div onclick="hostConfirmTrack(${i})" style="
+      display:flex;align-items:center;gap:12px;
+      background:var(--surface);border:1px solid var(--border);
+      border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer;
+    ">
+      ${t.album.images[2] ? `<img src="${t.album.images[2].url}" style="width:40px;height:40px;border-radius:6px;flex-shrink:0;">` : ''}
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.name}</div>
+        <div style="font-size:12px;color:var(--text-dim);">${t.artists.map(a=>a.name).join(', ')}</div>
+      </div>
+      <div style="color:var(--gold);font-size:18px;">›</div>
+    </div>
+  `).join('');
+}
+
+function hostConfirmTrack(idx) {
+  const track = window._hostTracks[idx];
+  const song = `${track.name} — ${track.artists.map(a=>a.name).join(', ')}`;
+
+  // Submit via WebSocket as if host were a player
+  send({
+    type: 'host_submit',
+    song,
+    trackUri: track.uri,
+    trackName: track.name,
+    artistName: track.artists.map(a=>a.name).join(', '),
+    albumArt: track.album.images[1]?.url || track.album.images[0]?.url || '',
+  });
+
+  document.getElementById('host-search-results').innerHTML = '';
+  document.getElementById('host-search-input').value = '';
+  document.getElementById('host-submission-song').textContent = song;
+  document.getElementById('host-submission-confirmed').style.display = 'block';
+  document.getElementById('host-search-input').disabled = true;
 }
 
 // ===================== PLAYBACK =====================

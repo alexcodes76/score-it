@@ -335,8 +335,8 @@ wss.on('connection', (ws) => {
     // ---- HOST: Start game ----
     if (type === 'host_start' && ws.role === 'host') {
       const room = ws.room;
-      if (room.players.size < 2) {
-        ws.send(JSON.stringify({ type: 'error', message: 'Need at least 2 players to start.' }));
+      if (room.players.size < 1) {
+        ws.send(JSON.stringify({ type: 'error', message: 'Need at least 1 player to start.' }));
         return;
       }
       room.players.forEach((_, name) => { room.scores[name] = 0; });
@@ -443,6 +443,45 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    // ---- HOST: Submit their own song ----
+    if (type === 'host_submit' && ws.role === 'host') {
+      const room = ws.room;
+      const hostName = 'Host';
+
+      const normalize = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const songKey = normalize((msg.trackName || msg.song) + (msg.artistName || ''));
+      const alreadyTaken = Object.values(room.submissions)
+        .some(s => normalize((s.trackName || s.song) + (s.artistName || '')) === songKey);
+
+      if (alreadyTaken) {
+        ws.send(JSON.stringify({ type: 'error', message: 'That song was already chosen.' }));
+        return;
+      }
+
+      room.submissions[hostName] = {
+        song: msg.song,
+        trackUri: msg.trackUri,
+        trackName: msg.trackName,
+        artistName: msg.artistName,
+        albumArt: msg.albumArt,
+      };
+
+      const submitted = Object.keys(room.submissions).length;
+      const total = room.players.size + 1; // +1 for host
+
+      ws.send(JSON.stringify({
+        type: 'submission_received',
+        playerName: hostName,
+        submitted,
+        total,
+        allIn: submitted === total,
+        submissions: submitted === total ? room.submissions : null,
+      }));
+
+      broadcast(room, { type: 'submission_count', submitted, total }, ws);
+      return;
+    }
+
     // ---- PLAYER: Toggle hints ----
     if (type === 'player_hints' && ws.role === 'player') {
       const room = ws.room;
@@ -478,7 +517,7 @@ wss.on('connection', (ws) => {
       ws.send(JSON.stringify({ type: 'submission_confirmed', song: msg.song }));
 
       const submitted = Object.keys(room.submissions).length;
-      const total = room.players.size;
+      const total = room.players.size + 1; // +1 for host
 
       // Notify host of progress
       sendToHost(room, {
