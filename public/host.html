@@ -380,6 +380,10 @@ function initSpotifyPlayer() {
     state.spotifyDeviceId = device_id;
     state.spotifyPlayer = player;
     updateSpotifyUI();
+    // Share token with server so players can search
+    if (state.ws && state.ws.readyState === 1) {
+      send({ type: 'host_token', token: state.spotifyToken });
+    }
   });
   player.addListener('not_ready', () => { state.spotifyDeviceId = null; updateSpotifyUI(); });
   player.addListener('authentication_error', () => { state.spotifyToken = null; updateSpotifyUI(); });

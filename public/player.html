@@ -276,9 +276,14 @@ function handleMessage(msg) {
     case 'joined':
       document.getElementById('waiting-name').textContent = msg.name;
       document.getElementById('waiting-room').textContent = `Room: ${msg.code}`;
-      // Authenticate Spotify
-      const savedToken = localStorage.getItem('spotify_token');
-      if (savedToken) state.spotifyToken = savedToken;
+      // Use host's Spotify token if provided
+      if (msg.spotifyToken) {
+        state.spotifyToken = msg.spotifyToken;
+        localStorage.setItem('spotify_token', msg.spotifyToken);
+      } else {
+        const savedToken = localStorage.getItem('spotify_token');
+        if (savedToken) state.spotifyToken = savedToken;
+      }
       showScreen('screen-waiting');
       break;
 

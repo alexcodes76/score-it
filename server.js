@@ -44,10 +44,11 @@ function createRoom(hostWs) {
     scores: {},
     currentScenario: '',
     currentConstraints: [],
-    submissions: {},    // name -> { song, trackUri, trackName, artistName, albumArt }
+    submissions: {},
     submissionOrder: [],
     verdictData: null,
     usedScenarios: new Set(),
+    spotifyToken: null,  // host's token, shared with players for search
   };
   rooms.set(code, room);
   return room;
@@ -396,6 +397,13 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    // ---- HOST: Share Spotify token ----
+    if (type === 'host_token' && ws.role === 'host') {
+      const room = ws.room;
+      room.spotifyToken = msg.token;
+      return;
+    }
+
     // ---- PLAYER: Join room ----
     if (type === 'player_join') {
       const room = rooms.get(msg.code?.toUpperCase());
@@ -427,6 +435,7 @@ wss.on('connection', (ws) => {
         name,
         code: room.code,
         spotifyClientId: SPOTIFY_CLIENT_ID,
+        spotifyToken: room.spotifyToken || null,
       }));
 
       // Notify host
