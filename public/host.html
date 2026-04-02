@@ -404,7 +404,18 @@ function initSpotifyPlayer() {
     }
   });
   player.addListener('not_ready', () => { state.spotifyDeviceId = null; updateSpotifyUI(); });
-  player.addListener('authentication_error', () => { state.spotifyToken = null; updateSpotifyUI(); });
+  player.addListener('authentication_error', async () => {
+    const refreshed = await refreshSpotifyToken();
+    if (refreshed) {
+      state.spotifyPlayer = null; // allow re-init
+      initSpotifyPlayer();
+    } else {
+      state.spotifyToken = null;
+      localStorage.removeItem('spotify_token');
+      localStorage.removeItem('spotify_refresh');
+      updateSpotifyUI();
+    }
+  });
   player.addListener('account_error', () => alert('Spotify Premium required.'));
   player.connect();
 }
@@ -943,6 +954,32 @@ function formatTime(s) {
   return m > 0 ? `${m}:${sec.toString().padStart(2,'0')}` : `0:${sec.toString().padStart(2,'0')}`;
 }
 
+async function refreshSpotifyToken() {
+  const refresh = localStorage.getItem('spotify_refresh');
+  const CLIENT_ID = window._spotifyClientId || '';
+  if (!refresh || !CLIENT_ID) return false;
+  try {
+    const body = new URLSearchParams({
+      client_id: CLIENT_ID,
+      grant_type: 'refresh_token',
+      refresh_token: refresh,
+    });
+    const res = await fetch('https://accounts.spotify.com/api/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    });
+    const data = await res.json();
+    if (data.access_token) {
+      state.spotifyToken = data.access_token;
+      localStorage.setItem('spotify_token', data.access_token);
+      if (data.refresh_token) localStorage.setItem('spotify_refresh', data.refresh_token);
+      return true;
+    }
+  } catch(e) {}
+  return false;
+}
+
 // ===================== INIT =====================
 window.onload = async () => {
   // Load config from server
@@ -956,9 +993,33 @@ window.onload = async () => {
     await exchangeCode(code);
   } else {
     const saved = localStorage.getItem('spotify_token');
-    if (saved) { state.spotifyToken = saved; }
+    const refresh = localStorage.getItem('spotify_refresh');
+    if (saved) {
+      state.spotifyToken = saved;
+      // Try to refresh the token silently to ensure it's fresh
+      if (refresh) {
+        const refreshed = await refreshSpotifyToken();
+        if (refreshed) {
+          initSpotifyPlayer();
+        } else {
+          // Refresh failed — clear tokens so user sees Connect button
+          localStorage.removeItem('spotify_token');
+          localStorage.removeItem('spotify_refresh');
+          state.spotifyToken = null;
+        }
+      } else {
+        initSpotifyPlayer();
+      }
+    }
   }
   updateSpotifyUI();
+
+  // Auto-refresh token every 45 minutes to keep session alive
+  setInterval(async () => {
+    if (state.spotifyToken) {
+      await refreshSpotifyToken();
+    }
+  }, 45 * 60 * 1000);
 };
 </script>
 </body>
