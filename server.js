@@ -401,6 +401,12 @@ wss.on('connection', (ws) => {
     if (type === 'host_token' && ws.role === 'host') {
       const room = ws.room;
       room.spotifyToken = msg.token;
+      // Push token to all currently connected players
+      for (const [, player] of room.players) {
+        if (player.ws.readyState === 1) {
+          player.ws.send(JSON.stringify({ type: 'spotify_token', token: msg.token }));
+        }
+      }
       return;
     }
 

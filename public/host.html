@@ -432,13 +432,37 @@ function updateSpotifyUI() {
     dot.style.background = '#c9a84c';
     text.textContent = 'Connecting Spotify player...';
     btn.style.display = 'none';
+    // If still not connected after 8 seconds, show connect button
+    setTimeout(() => {
+      if (!state.spotifyDeviceId) {
+        text.textContent = 'Connection timed out';
+        btn.textContent = 'Try Again';
+        btn.style.display = 'block';
+        localStorage.removeItem('spotify_token');
+        localStorage.removeItem('spotify_refresh');
+        state.spotifyToken = null;
+        state.spotifyPlayer = null;
+      }
+    }, 8000);
   } else if (localStorage.getItem('spotify_refresh')) {
     dot.style.background = '#c9a84c';
     text.textContent = 'Reconnecting Spotify...';
     btn.style.display = 'none';
+    // Show connect button after 5 seconds if still stuck
+    setTimeout(() => {
+      if (!state.spotifyDeviceId && !state.spotifyToken) {
+        localStorage.removeItem('spotify_token');
+        localStorage.removeItem('spotify_refresh');
+        dot.style.background = 'var(--text-dim)';
+        text.textContent = 'Could not reconnect';
+        btn.textContent = 'Connect Spotify';
+        btn.style.display = 'block';
+      }
+    }, 5000);
   } else {
     dot.style.background = 'var(--text-dim)';
     text.textContent = 'Not connected';
+    btn.textContent = 'Connect Spotify';
     btn.style.display = 'block';
   }
 }
@@ -485,6 +509,10 @@ function handleMessage(msg) {
       if (!state.players.includes(msg.name)) state.players.push(msg.name);
       renderLobbyPlayers();
       document.getElementById('start-btn').disabled = state.players.length < 1;
+      // Share current Spotify token with the new player
+      if (state.spotifyToken) {
+        send({ type: 'host_token', token: state.spotifyToken });
+      }
       break;
 
     case 'player_left':

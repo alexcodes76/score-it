@@ -328,8 +328,9 @@ function handleMessage(msg) {
       }
       break;
 
-    case 'submission_confirmed':
-      // Already handled in confirmTrack
+    case 'spotify_token':
+      state.spotifyToken = msg.token;
+      localStorage.setItem('spotify_token', msg.token);
       break;
 
     case 'judging_start':
