@@ -377,10 +377,14 @@ wss.on('connection', (ws) => {
           submissions: room.submissions,
         });
       } catch (e) {
-        // Random fallback
-        const players = room.submissionOrder.filter(p => room.submissions[p]);
-        const winner = players[Math.floor(Math.random() * players.length)];
-        const fallback = { winner, reasoning: 'AI judging unavailable — winner selected randomly.' };
+        console.error('Judge error:', e.message);
+        // Fall back to random winner
+        const players = Object.keys(room.submissions).filter(p => room.submissions[p]);
+        const winner = players[Math.floor(Math.random() * players.length)] || 'No one';
+        const fallback = {
+          winner,
+          reasoning: `AI judging encountered an error (${e.message}). Winner selected randomly. Check that ANTHROPIC_API_KEY is set correctly in Railway variables.`
+        };
         room.verdictData = fallback;
         applyScores(room, fallback);
         room.state = 'verdict';
