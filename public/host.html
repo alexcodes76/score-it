@@ -426,11 +426,15 @@ function updateSpotifyUI() {
   const btn = document.getElementById('spotify-connect-btn');
   if (state.spotifyDeviceId) {
     dot.style.background = '#1DB954';
-    text.textContent = 'Connected — Score It! player ready';
+    text.textContent = 'Spotify connected ✓';
     btn.style.display = 'none';
   } else if (state.spotifyToken) {
     dot.style.background = '#c9a84c';
     text.textContent = 'Connecting Spotify player...';
+    btn.style.display = 'none';
+  } else if (localStorage.getItem('spotify_refresh')) {
+    dot.style.background = '#c9a84c';
+    text.textContent = 'Reconnecting Spotify...';
     btn.style.display = 'none';
   } else {
     dot.style.background = 'var(--text-dim)';
@@ -982,41 +986,49 @@ async function refreshSpotifyToken() {
 
 // ===================== INIT =====================
 window.onload = async () => {
-  // Load config from server
+  // Load config from server FIRST before anything else
   const config = await fetch('/api/config').then(r => r.json()).catch(() => ({}));
   window._spotifyClientId = config.spotifyClientId || '';
 
-  // Check for Spotify callback
+  // Check for Spotify OAuth callback
   const urlParams = new URLSearchParams(window.location.search);
   const code = urlParams.get('code');
   if (code) {
     await exchangeCode(code);
-  } else {
-    const saved = localStorage.getItem('spotify_token');
-    const refresh = localStorage.getItem('spotify_refresh');
-    if (saved) {
-      state.spotifyToken = saved;
-      // Try to refresh the token silently to ensure it's fresh
-      if (refresh) {
-        const refreshed = await refreshSpotifyToken();
-        if (refreshed) {
-          initSpotifyPlayer();
-        } else {
-          // Refresh failed — clear tokens so user sees Connect button
-          localStorage.removeItem('spotify_token');
-          localStorage.removeItem('spotify_refresh');
-          state.spotifyToken = null;
-        }
-      } else {
-        initSpotifyPlayer();
-      }
-    }
+    updateSpotifyUI();
+    return;
   }
+
+  // Try to restore session
+  const savedToken = localStorage.getItem('spotify_token');
+  const savedRefresh = localStorage.getItem('spotify_refresh');
+
+  if (savedRefresh) {
+    // Always try to refresh — gets a fresh token regardless of whether old one expired
+    updateSpotifyUI(); // show "connecting..." while refreshing
+    const refreshed = await refreshSpotifyToken();
+    if (refreshed) {
+      initSpotifyPlayer();
+    } else if (savedToken) {
+      // Refresh failed but we have a token — try it anyway
+      state.spotifyToken = savedToken;
+      initSpotifyPlayer();
+    } else {
+      // Nothing works — clear and show Connect button
+      localStorage.removeItem('spotify_token');
+      localStorage.removeItem('spotify_refresh');
+    }
+  } else if (savedToken) {
+    // No refresh token, try saved token directly
+    state.spotifyToken = savedToken;
+    initSpotifyPlayer();
+  }
+
   updateSpotifyUI();
 
-  // Auto-refresh token every 45 minutes to keep session alive
+  // Auto-refresh every 45 minutes
   setInterval(async () => {
-    if (state.spotifyToken) {
+    if (localStorage.getItem('spotify_refresh')) {
       await refreshSpotifyToken();
     }
   }, 45 * 60 * 1000);
