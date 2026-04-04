@@ -110,8 +110,8 @@
     <!-- Judging -->
     <div class="section-label">Judging Style</div>
     <div class="toggle-row">
-      <div class="toggle-opt selected" data-judge="winner" onclick="selectJudge(this)">Winner only</div>
-      <div class="toggle-opt" data-judge="ranked" onclick="selectJudge(this)">Full ranking</div>
+      <div class="toggle-opt" data-judge="winner" onclick="selectJudge(this)">Winner only</div>
+      <div class="toggle-opt selected" data-judge="ranked" onclick="selectJudge(this)">Full ranking</div>
     </div>
 
     <!-- Song Duration -->
@@ -267,7 +267,7 @@
 const state = {
   ws: null,
   roomCode: null,
-  settings: { difficulty: 'easy', rounds: 5, judgeStyle: 'winner', songDuration: 60 },
+  settings: { difficulty: 'easy', rounds: 5, judgeStyle: 'ranked', songDuration: 60 },
   players: [],
   scores: {},
   submissions: {},
@@ -763,26 +763,17 @@ function startPlaying() {
   const sub = state.submissions[player];
 
   if (state.spotifyPlayer && sub?.trackUri) {
-    // Load the track
+    // Step 1: Load and play the track via API
     fetch(`https://api.spotify.com/v1/me/player/play?device_id=${state.spotifyDeviceId}`, {
       method: 'PUT',
       headers: { 'Authorization': `Bearer ${state.spotifyToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ uris: [sub.trackUri], position_ms: 0 }),
-    }).then(() => {
-      // Auto pause-resume trick to ensure Safari allows playback
-      setTimeout(() => {
-        if (state.spotifyPlayer) {
-          state.spotifyPlayer.pause().then(() => {
-            setTimeout(() => {
-              if (state.spotifyPlayer) state.spotifyPlayer.resume();
-            }, 300);
-          });
-        }
-      }, 500);
     }).catch(() => {});
   }
 
-  startTimer();
+  // Step 2: Wait 1.5s for Spotify to load, then start timer
+  // The pause/resume on next song advances work correctly from here
+  setTimeout(() => startTimer(), 1500);
 }
 
 function startTimer() {
