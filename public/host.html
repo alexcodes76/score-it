@@ -756,24 +756,30 @@ function showCurrentSongInfo() {
 
 function startPlaying() {
   document.getElementById('play-songs-btn').style.display = 'none';
-  document.getElementById('skip-btn').style.display = 'block';
-  document.getElementById('pause-btn').style.display = 'block';
-  document.getElementById('restart-btn').style.display = 'block';
   state.isPaused = false;
   document.getElementById('pause-btn').textContent = '⏸ Pause';
 
-  // Use SDK directly here — this is inside the click handler so Safari trusts it
   const player = state.playbackQueue[state.playbackIndex];
   const sub = state.submissions[player];
+
   if (state.spotifyPlayer && sub?.trackUri) {
-    // SDK play with specific track
+    // Load the track
     fetch(`https://api.spotify.com/v1/me/player/play?device_id=${state.spotifyDeviceId}`, {
       method: 'PUT',
       headers: { 'Authorization': `Bearer ${state.spotifyToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ uris: [sub.trackUri], position_ms: 0 }),
+    }).then(() => {
+      // Auto pause-resume trick to ensure Safari allows playback
+      setTimeout(() => {
+        if (state.spotifyPlayer) {
+          state.spotifyPlayer.pause().then(() => {
+            setTimeout(() => {
+              if (state.spotifyPlayer) state.spotifyPlayer.resume();
+            }, 300);
+          });
+        }
+      }, 500);
     }).catch(() => {});
-  } else if (state.spotifyPlayer) {
-    state.spotifyPlayer.resume();
   }
 
   startTimer();
