@@ -757,45 +757,32 @@ function showCurrentSongInfo() {
 }
 
 function startPlaying() {
-  // Called from the Play Songs button — this IS a user gesture Safari respects
   document.getElementById('play-songs-btn').style.display = 'none';
   document.getElementById('skip-btn').style.display = 'block';
   document.getElementById('pause-btn').style.display = 'block';
   document.getElementById('restart-btn').style.display = 'block';
   state.isPaused = false;
-  playCurrentSong();
-}
-
-function playCurrentSong() {
-  if (state.playbackIndex >= state.playbackQueue.length) { finishPlayback(); return; }
-  clearTimeout(state.playbackTimer);
-  clearInterval(state.playbackTimer);
-  state.isPaused = false;
   document.getElementById('pause-btn').textContent = '⏸ Pause';
+
+  // Use SDK directly here — this is inside the click handler so Safari trusts it
   const player = state.playbackQueue[state.playbackIndex];
   const sub = state.submissions[player];
-  const song = sub?.trackName || sub?.song || '—';
-  const artist = sub?.artistName || '';
-  const albumArt = sub?.albumArt || '';
-
-  document.getElementById('now-playing-song').textContent = song;
-  document.getElementById('now-playing-player').textContent = artist ? `${artist} · ${player}` : player;
-  document.getElementById('now-playing-label').textContent = `${state.playbackIndex + 1} of ${state.playbackQueue.length}`;
-
-  const artWrap = document.getElementById('now-playing-art-wrap');
-  artWrap.innerHTML = albumArt ? `<img src="${albumArt}" style="width:80px;height:80px;border-radius:8px;margin:12px auto 0;display:block;">` : '';
-
-  renderPlaybackQueue();
-
-  // Play on Spotify
-  if (state.spotifyToken && state.spotifyDeviceId && sub?.trackUri) {
+  if (state.spotifyPlayer && sub?.trackUri) {
+    // SDK play with specific track
     fetch(`https://api.spotify.com/v1/me/player/play?device_id=${state.spotifyDeviceId}`, {
       method: 'PUT',
       headers: { 'Authorization': `Bearer ${state.spotifyToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ uris: [sub.trackUri], position_ms: 0 }),
     }).catch(() => {});
+  } else if (state.spotifyPlayer) {
+    state.spotifyPlayer.resume();
   }
 
+  startTimer();
+}
+
+function startTimer() {
+  // Starts the countdown/polling timer for current song
   const dur = state.settings.songDuration;
   const isLast = state.playbackIndex >= state.playbackQueue.length - 1;
   const timerBar = document.getElementById('timer-bar');
@@ -805,20 +792,21 @@ function playCurrentSong() {
     timerBar.style.width = '100%';
     timerLabel.textContent = 'Playing';
     document.getElementById('skip-btn').textContent = 'Next Song →';
-    // Poll Spotify for track end
     if (state.spotifyToken) {
       let polls = 0;
       const poll = setInterval(async () => {
         if (state.isPaused) return;
         if (++polls > 180) { clearInterval(poll); return; }
         try {
-          const res = await fetch('https://api.spotify.com/v1/me/player', { headers: { 'Authorization': `Bearer ${state.spotifyToken}` } });
+          const res = await fetch('https://api.spotify.com/v1/me/player', {
+            headers: { 'Authorization': `Bearer ${state.spotifyToken}` }
+          });
           if (!res.ok) return;
           const data = await res.json();
           if (data && !data.is_playing && data.progress_ms > 5000) {
             clearInterval(poll);
             if (!state.isPaused) {
-              isLast ? (await playChime('judge'), finishPlayback()) : (await playChime('next'), state.playbackIndex++, playCurrentSong());
+              isLast ? (await playChime('judge'), finishPlayback()) : (await playChime('next'), advanceToNext());
             }
           }
         } catch(e) {}
@@ -851,9 +839,48 @@ function playCurrentSong() {
     clearInterval(tick);
     if (!state.isPaused) {
       spotifyPause();
-      isLast ? (await playChime('judge'), finishPlayback()) : (await playChime('next'), state.playbackIndex++, playCurrentSong());
+      isLast ? (await playChime('judge'), finishPlayback()) : (await playChime('next'), advanceToNext());
     }
   }, dur * 1000);
+}
+
+function advanceToNext() {
+  state.playbackIndex++;
+  playCurrentSong();
+}
+
+function playCurrentSong() {
+  if (state.playbackIndex >= state.playbackQueue.length) { finishPlayback(); return; }
+  clearTimeout(state.playbackTimer);
+  clearInterval(state.playbackTimer);
+  state.isPaused = false;
+  document.getElementById('pause-btn').textContent = '⏸ Pause';
+
+  const player = state.playbackQueue[state.playbackIndex];
+  const sub = state.submissions[player];
+  const song = sub?.trackName || sub?.song || '—';
+  const artist = sub?.artistName || '';
+  const albumArt = sub?.albumArt || '';
+
+  document.getElementById('now-playing-song').textContent = song;
+  document.getElementById('now-playing-player').textContent = artist ? `${artist} · ${player}` : player;
+  document.getElementById('now-playing-label').textContent = `${state.playbackIndex + 1} of ${state.playbackQueue.length}`;
+
+  const artWrap = document.getElementById('now-playing-art-wrap');
+  artWrap.innerHTML = albumArt ? `<img src="${albumArt}" style="width:80px;height:80px;border-radius:8px;margin:12px auto 0;display:block;">` : '';
+
+  renderPlaybackQueue();
+
+  // Play on Spotify
+  if (state.spotifyToken && state.spotifyDeviceId && sub?.trackUri) {
+    fetch(`https://api.spotify.com/v1/me/player/play?device_id=${state.spotifyDeviceId}`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${state.spotifyToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uris: [sub.trackUri], position_ms: 0 }),
+    }).catch(() => {});
+  }
+
+  startTimer();
 }
 
 function spotifyPause() {
@@ -911,9 +938,8 @@ function skipSong() {
   clearTimeout(state.playbackTimer);
   clearInterval(state.playbackTimer);
   spotifyPause();
-  state.playbackIndex++;
-  const isLast = state.playbackIndex >= state.playbackQueue.length;
-  isLast ? playChime('judge').then(() => finishPlayback()) : playChime('next').then(() => playCurrentSong());
+  const isLast = state.playbackIndex >= state.playbackQueue.length - 1;
+  isLast ? playChime('judge').then(() => finishPlayback()) : playChime('next').then(() => advanceToNext());
 }
 
 function finishPlayback() {
