@@ -241,7 +241,8 @@ function getFallbackScenario(room) {
 async function beginRound(room) {
   room.currentRound++;
   room.submissions = {};
-  room.submissionOrder = Array.from(room.players.keys());
+  // Include Host in submission order
+  room.submissionOrder = [...Array.from(room.players.keys()), 'Host'];
   // Shuffle with rotation
   const offset = (room.currentRound - 1) % room.submissionOrder.length;
   room.submissionOrder = [
@@ -340,7 +341,31 @@ wss.on('connection', (ws) => {
         return;
       }
       room.players.forEach((_, name) => { room.scores[name] = 0; });
+      room.scores['Host'] = 0; // Host participates and is scored
       await beginRound(room);
+      return;
+    }
+
+    // ---- HOST: Refresh scenario ----
+    if (type === 'host_refresh_scenario' && ws.role === 'host') {
+      const room = ws.room;
+      try {
+        const scenario = await generateScenario(room);
+        room.currentScenario = scenario.text;
+        room.currentConstraints = scenario.constraints || [];
+        room.usedScenarios.add(scenario.text.slice(0, 30));
+      } catch(e) {
+        const fallback = getFallbackScenario(room);
+        room.currentScenario = fallback.text;
+        room.currentConstraints = fallback.constraints || [];
+      }
+      broadcast(room, {
+        type: 'scenario',
+        scenario: room.currentScenario,
+        constraints: room.currentConstraints,
+        round: room.currentRound,
+        rounds: room.settings.rounds,
+      });
       return;
     }
 

@@ -117,8 +117,8 @@
     <!-- Song Duration -->
     <div class="section-label">Song Duration</div>
     <div class="toggle-row">
-      <div class="toggle-opt" data-dur="30" onclick="selectDur(this)">:30</div>
-      <div class="toggle-opt selected" data-dur="60" onclick="selectDur(this)">1 min</div>
+      <div class="toggle-opt selected" data-dur="30" onclick="selectDur(this)">:30</div>
+      <div class="toggle-opt" data-dur="60" onclick="selectDur(this)">1 min</div>
       <div class="toggle-opt" data-dur="90" onclick="selectDur(this)">1:30</div>
       <div class="toggle-opt" data-dur="0" onclick="selectDur(this)">Full</div>
     </div>
@@ -162,6 +162,11 @@
         <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold-dim);margin-bottom:6px;">Constraints</div>
         <div id="constraints-text" style="font-size:13px;color:var(--text-mid);"></div>
       </div>
+      <button onclick="refreshScenario()" style="
+        margin-top:14px;background:none;border:1px solid var(--gold-dim);
+        border-radius:6px;color:var(--gold-dim);font-size:12px;padding:6px 12px;
+        cursor:pointer;font-family:'DM Sans',sans-serif;
+      ">↺ New Scenario</button>
     </div>
 
     <div class="section-label">Submissions</div>
@@ -267,7 +272,7 @@
 const state = {
   ws: null,
   roomCode: null,
-  settings: { difficulty: 'easy', rounds: 5, judgeStyle: 'ranked', songDuration: 60 },
+  settings: { difficulty: 'easy', rounds: 5, judgeStyle: 'ranked', songDuration: 30 },
   players: [],
   scores: {},
   submissions: {},
@@ -608,6 +613,12 @@ function startGame() {
   send({ type: 'host_start' });
 }
 
+function refreshScenario() {
+  document.getElementById('scenario-text').textContent = 'Generating new scenario...';
+  document.getElementById('constraints-box').style.display = 'none';
+  send({ type: 'host_refresh_scenario' });
+}
+
 // ===================== SUBMISSIONS =====================
 function renderSubmissionList() {
   const list = document.getElementById('submission-list');
@@ -759,21 +770,27 @@ function startPlaying() {
   state.isPaused = false;
   document.getElementById('pause-btn').textContent = '⏸ Pause';
 
-  const player = state.playbackQueue[state.playbackIndex];
-  const sub = state.submissions[player];
-
-  if (state.spotifyPlayer && sub?.trackUri) {
-    // Step 1: Load and play the track via API
-    fetch(`https://api.spotify.com/v1/me/player/play?device_id=${state.spotifyDeviceId}`, {
-      method: 'PUT',
-      headers: { 'Authorization': `Bearer ${state.spotifyToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uris: [sub.trackUri], position_ms: 0 }),
-    }).catch(() => {});
+  // Step 1: Resume SDK immediately — this is synchronous inside the click handler
+  // Safari trusts this because there's zero async before it
+  if (state.spotifyPlayer) {
+    state.spotifyPlayer.resume();
   }
 
-  // Step 2: Wait 1.5s for Spotify to load, then start timer
-  // The pause/resume on next song advances work correctly from here
-  setTimeout(() => startTimer(), 1500);
+  // Step 2: Switch to the actual track after a short delay
+  const player = state.playbackQueue[state.playbackIndex];
+  const sub = state.submissions[player];
+  if (state.spotifyToken && state.spotifyDeviceId && sub?.trackUri) {
+    setTimeout(() => {
+      fetch(`https://api.spotify.com/v1/me/player/play?device_id=${state.spotifyDeviceId}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${state.spotifyToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uris: [sub.trackUri], position_ms: 0 }),
+      }).catch(() => {});
+    }, 100);
+  }
+
+  // Step 3: Start timer after track has time to load
+  setTimeout(() => startTimer(), 1000);
 }
 
 function startTimer() {
