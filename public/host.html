@@ -770,28 +770,23 @@ function startPlaying() {
   state.isPaused = false;
   document.getElementById('pause-btn').textContent = '⏸ Pause';
 
-  // Send full queue to players so they can see all slots
+  const player = state.playbackQueue[state.playbackIndex];
+  const sub = state.submissions[player];
+
+  // Send queue to players
   send({
     type: 'host_playback_start',
     queue: state.playbackQueue,
     submissions: state.submissions,
   });
 
-  // Step 1: Resume SDK immediately — synchronous inside click handler
-  if (state.spotifyPlayer) {
-    state.spotifyPlayer.resume();
-  }
-
-  // Step 2: Switch to actual track
-  const player = state.playbackQueue[state.playbackIndex];
-  const sub = state.submissions[player];
   if (state.spotifyToken && state.spotifyDeviceId && sub?.trackUri) {
-    setTimeout(() => {
-      fetch(`https://api.spotify.com/v1/me/player/play?device_id=${state.spotifyDeviceId}`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${state.spotifyToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uris: [sub.trackUri], position_ms: 0 }),
-      }).catch(() => {});
+    // Load the specific track — don't resume, always load fresh
+    fetch(`https://api.spotify.com/v1/me/player/play?device_id=${state.spotifyDeviceId}`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${state.spotifyToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uris: [sub.trackUri], position_ms: 0 }),
+    }).then(() => {
       // Broadcast now playing to players
       send({
         type: 'host_now_playing',
@@ -802,7 +797,7 @@ function startPlaying() {
         index: state.playbackIndex,
         total: state.playbackQueue.length,
       });
-    }, 100);
+    }).catch(() => {});
   }
 
   setTimeout(() => startTimer(), 1000);

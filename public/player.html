@@ -317,6 +317,7 @@ function handleMessage(msg) {
       state.submitted = false;
       state.nowPlayingQueue = [];
       state.revealedSongs = {};
+      // Reset all submission UI
       document.getElementById('submit-name').textContent = state.name;
       document.getElementById('submit-round-label').textContent = `Round ${msg.round} of ${msg.rounds}`;
       document.getElementById('submit-scenario').textContent = 'Loading scenario...';
@@ -324,6 +325,11 @@ function handleMessage(msg) {
       document.getElementById('search-input').value = '';
       document.getElementById('search-results').innerHTML = '';
       document.getElementById('hints-section').style.display = 'none';
+      // Reset confirmed screen
+      document.getElementById('now-playing-section').style.display = 'none';
+      document.getElementById('confirmed-waiting').style.display = 'block';
+      document.getElementById('confirmed-waiting').textContent = 'Waiting for all players to submit...';
+      // Always navigate to submit screen — no matter where the player is
       showScreen('screen-submit');
       break;
 
