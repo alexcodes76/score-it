@@ -131,19 +131,30 @@ async function generateScenario(room) {
     ? 'Also generate exactly 2 constraints from different categories.'
     : '';
 
+  const usedList = Array.from(room.usedScenarios).slice(-10).join('\n- ') || 'none yet';
+
   const prompt = `Generate a scenario for round ${room.currentRound} of ${room.settings.rounds} at ${diff} difficulty.
 
-The scenario should be a specific, evocative situation, feeling, or moment that a song could perfectly capture. Keep it to 1-3 sentences. Be creative — avoid themes already used: ${Array.from(room.usedScenarios).slice(-5).join(', ') || 'none yet'}.
+The scenario should be a specific, evocative situation, feeling, or moment that a song could perfectly capture. Keep it to 1-3 sentences. Be creative and varied.
+
+IMPORTANT — avoid these themes and emotional territories already used this game:
+- ${usedList}
+
+Pick something emotionally distinct from the above. Do not repeat driving, road trips, weddings, or any theme already covered.
 
 ${constraintNote}
 
-Return JSON: {"text": "The scenario.", "constraints": ["Constraint 1", "Constraint 2"]}
+Return JSON: {"text": "The scenario.", "theme": "2-3 word theme label", "constraints": []}
 For easy, constraints array is empty. For medium, one item. For hard, two items.
 Constraint format examples: "Genre: Hip-hop only", "Decade: 1990s only", "Singer: Female artist only", "Format: Bands only", "Title: One-word titles only"`;
 
   const raw = await callClaude(system, prompt);
   const clean = raw.replace(/```json|```/g, '').trim();
-  return JSON.parse(clean);
+  const parsed = JSON.parse(clean);
+  // Track theme label for better repetition avoidance
+  if (parsed.theme) room.usedScenarios.add(parsed.theme);
+  else room.usedScenarios.add(parsed.text.slice(0, 40));
+  return parsed;
 }
 
 async function generateHints(scenario, constraints) {
@@ -232,9 +243,13 @@ const fallbackScenarios = {
 function getFallbackScenario(room) {
   const diff = room.settings.difficulty;
   const bank = fallbackScenarios[diff];
-  const unused = bank.filter((_, i) => !room.usedScenarios.has(i));
+  const unused = bank.filter((s, i) => !room.usedScenarios.has(`${diff}-${i}`));
   const pool = unused.length > 0 ? unused : bank;
-  return pool[Math.floor(Math.random() * pool.length)];
+  const picked = pool[Math.floor(Math.random() * pool.length)];
+  // Mark as used by index
+  const idx = bank.indexOf(picked);
+  if (idx >= 0) room.usedScenarios.add(`${diff}-${idx}`);
+  return picked;
 }
 
 // ===================== GAME LOGIC =====================
@@ -259,7 +274,6 @@ async function beginRound(room) {
     const scenario = await generateScenario(room);
     room.currentScenario = scenario.text;
     room.currentConstraints = scenario.constraints || [];
-    room.usedScenarios.add(scenario.text.slice(0, 30));
   } catch (e) {
     const fallback = getFallbackScenario(room);
     room.currentScenario = fallback.text;

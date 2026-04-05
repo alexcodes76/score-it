@@ -375,9 +375,9 @@ function handleMessage(msg) {
       break;
 
     case 'playback_start':
-      // Show the queue with all slots hidden
       state.nowPlayingQueue = msg.queue || [];
       state.revealedSongs = {};
+      state.currentTrackIndex = -1;
       document.getElementById('confirmed-waiting').style.display = 'none';
       document.getElementById('now-playing-section').style.display = 'block';
       document.getElementById('np-label').textContent = 'Get ready...';
@@ -386,17 +386,17 @@ function handleMessage(msg) {
       document.getElementById('np-player').textContent = '';
       document.getElementById('np-art').innerHTML = '';
       renderNowPlayingQueue();
+      // Navigate to confirmed screen so they can see the queue
+      showScreen('screen-confirmed');
       break;
 
     case 'now_playing':
-      // Reveal the current song
-      state.revealedSongs = state.revealedSongs || {};
+      state.currentTrackIndex = msg.index;
       state.revealedSongs[msg.playerName] = {
         trackName: msg.trackName,
         artistName: msg.artistName,
         albumArt: msg.albumArt,
       };
-      // Update now playing card
       document.getElementById('now-playing-section').style.display = 'block';
       document.getElementById('np-label').textContent = `${msg.index + 1} of ${msg.total}`;
       document.getElementById('np-song').textContent = msg.trackName;
@@ -406,6 +406,8 @@ function handleMessage(msg) {
         ? `<img src="${msg.albumArt}" style="width:100px;height:100px;border-radius:10px;display:block;margin:0 auto;">`
         : '';
       renderNowPlayingQueue();
+      // Make sure they're on the confirmed screen
+      showScreen('screen-confirmed');
       break;
 
     case 'judging_start':
@@ -416,6 +418,9 @@ function handleMessage(msg) {
       break;
 
     case 'verdict':
+      // Navigate to verdict screen even if judging_start was missed
+      showScreen('screen-verdict');
+      document.getElementById('verdict-loading').style.display = 'none';
       renderVerdict(msg.verdict, msg.scores, msg.isLastRound);
       break;
 
