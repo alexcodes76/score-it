@@ -255,12 +255,15 @@ function send(msg) {
   if (state.ws && state.ws.readyState === 1) state.ws.send(JSON.stringify(msg));
 }
 
-function connectWS(onOpen) {  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+function connectWS(onOpen) {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   state.ws = new WebSocket(`${proto}://${location.host}`);
   state.ws.onopen = onOpen;
-  state.ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+  state.ws.onmessage = (e) => {
+    if (e.data === '__ping__') { state.ws.send('__pong__'); return; }
+    try { handleMessage(JSON.parse(e.data)); } catch(err) {}
+  };
   state.ws.onclose = () => {
-    // Auto-reconnect and rejoin if we were in a game
     setTimeout(() => {
       if (state.name && state.roomCode) {
         connectWS(() => {
@@ -269,9 +272,7 @@ function connectWS(onOpen) {  const proto = location.protocol === 'https:' ? 'ws
       }
     }, 2000);
   };
-  state.ws.onerror = () => {
-    // Will trigger onclose which handles reconnect
-  };
+  state.ws.onerror = () => {};
 }
 
 // ===================== JOIN =====================

@@ -60,6 +60,7 @@ function broadcast(room, message, excludeWs = null) {
     room.host.send(data);
   }
   for (const [, player] of room.players) {
+    if (!player.ws) continue;
     if (player.ws !== excludeWs && player.ws.readyState === 1) {
       player.ws.send(data);
     }
@@ -74,7 +75,7 @@ function sendToHost(room, message) {
 
 function sendToPlayer(room, playerName, message) {
   const player = room.players.get(playerName);
-  if (player && player.ws.readyState === 1) {
+  if (player && player.ws && player.ws.readyState === 1) {
     player.ws.send(JSON.stringify(message));
   }
 }
@@ -706,15 +707,31 @@ wss.on('connection', (ws) => {
     if (!room) return;
 
     if (ws.role === 'host') {
-      // Host left — notify players
       broadcast(room, { type: 'host_left' });
       rooms.delete(room.code);
     } else if (ws.role === 'player') {
-      room.players.delete(ws.playerName);
-      sendToHost(room, { type: 'player_left', name: ws.playerName, playerCount: room.players.size });
+      // Don't remove player from room — they may reconnect
+      // Just mark their connection as dead so broadcasts skip them
+      const player = room.players.get(ws.playerName);
+      if (player) player.ws = null;
+      sendToHost(room, { type: 'player_disconnected', name: ws.playerName });
     }
   });
+
+  ws.on('pong', () => { ws.isAlive = true; });
 });
+
+// ===================== KEEP-ALIVE PING =====================
+// Ping all clients every 25 seconds to keep connections alive on mobile
+const pingInterval = setInterval(() => {
+  wss.clients.forEach(ws => {
+    if (ws.isAlive === false) { ws.terminate(); return; }
+    ws.isAlive = false;
+    ws.ping();
+  });
+}, 25000);
+
+wss.on('close', () => clearInterval(pingInterval));
 
 // ===================== REST ENDPOINTS =====================
 
