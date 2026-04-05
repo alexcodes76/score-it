@@ -346,6 +346,44 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    // ---- HOST: Playback started — send queue to players ----
+    if (type === 'host_playback_start' && ws.role === 'host') {
+      const room = ws.room;
+      // Send queue to players with songs hidden
+      const hiddenQueue = (msg.queue || []).map(playerName => ({
+        playerName,
+        hidden: true,
+      }));
+      for (const [, player] of room.players) {
+        if (player.ws.readyState === 1) {
+          player.ws.send(JSON.stringify({
+            type: 'playback_start',
+            queue: hiddenQueue,
+          }));
+        }
+      }
+      return;
+    }
+
+    // ---- HOST: Now playing — reveal song to players ----
+    if (type === 'host_now_playing' && ws.role === 'host') {
+      const room = ws.room;
+      for (const [, player] of room.players) {
+        if (player.ws.readyState === 1) {
+          player.ws.send(JSON.stringify({
+            type: 'now_playing',
+            playerName: msg.playerName,
+            trackName: msg.trackName,
+            artistName: msg.artistName,
+            albumArt: msg.albumArt,
+            index: msg.index,
+            total: msg.total,
+          }));
+        }
+      }
+      return;
+    }
+
     // ---- HOST: Refresh scenario ----
     if (type === 'host_refresh_scenario' && ws.role === 'host') {
       const room = ws.room;

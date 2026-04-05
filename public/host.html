@@ -770,13 +770,19 @@ function startPlaying() {
   state.isPaused = false;
   document.getElementById('pause-btn').textContent = '⏸ Pause';
 
-  // Step 1: Resume SDK immediately — this is synchronous inside the click handler
-  // Safari trusts this because there's zero async before it
+  // Send full queue to players so they can see all slots
+  send({
+    type: 'host_playback_start',
+    queue: state.playbackQueue,
+    submissions: state.submissions,
+  });
+
+  // Step 1: Resume SDK immediately — synchronous inside click handler
   if (state.spotifyPlayer) {
     state.spotifyPlayer.resume();
   }
 
-  // Step 2: Switch to the actual track after a short delay
+  // Step 2: Switch to actual track
   const player = state.playbackQueue[state.playbackIndex];
   const sub = state.submissions[player];
   if (state.spotifyToken && state.spotifyDeviceId && sub?.trackUri) {
@@ -786,10 +792,19 @@ function startPlaying() {
         headers: { 'Authorization': `Bearer ${state.spotifyToken}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ uris: [sub.trackUri], position_ms: 0 }),
       }).catch(() => {});
+      // Broadcast now playing to players
+      send({
+        type: 'host_now_playing',
+        playerName: player,
+        trackName: sub?.trackName || sub?.song || '—',
+        artistName: sub?.artistName || '',
+        albumArt: sub?.albumArt || '',
+        index: state.playbackIndex,
+        total: state.playbackQueue.length,
+      });
     }, 100);
   }
 
-  // Step 3: Start timer after track has time to load
   setTimeout(() => startTimer(), 1000);
 }
 
@@ -882,6 +897,17 @@ function playCurrentSong() {
   artWrap.innerHTML = albumArt ? `<img src="${albumArt}" style="width:80px;height:80px;border-radius:8px;margin:12px auto 0;display:block;">` : '';
 
   renderPlaybackQueue();
+
+  // Broadcast now playing to players
+  send({
+    type: 'host_now_playing',
+    playerName: player,
+    trackName: song,
+    artistName: artist,
+    albumArt: albumArt,
+    index: state.playbackIndex,
+    total: state.playbackQueue.length,
+  });
 
   // Play on Spotify
   if (state.spotifyToken && state.spotifyDeviceId && sub?.trackUri) {

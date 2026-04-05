@@ -147,15 +147,32 @@
     <div class="app-title" id="confirmed-name"></div>
     <div class="app-subtitle">Song locked in</div>
   </div>
-  <div class="content" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:60vh;text-align:center;">
-    <div class="confirmed-box" style="width:100%;max-width:320px;">
-      <div style="font-size:32px;margin-bottom:12px;">✓</div>
-      <div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--green);margin-bottom:8px;">Locked In</div>
-      <div style="font-family:'Playfair Display',serif;font-size:20px;margin-bottom:4px;" id="confirmed-song"></div>
-      <div style="font-size:13px;color:var(--text-dim);" id="confirmed-artist"></div>
+  <div class="content">
+    <!-- Confirmed box at top -->
+    <div class="confirmed-box" style="text-align:center;margin-bottom:20px;">
+      <div style="font-size:24px;margin-bottom:8px;">✓</div>
+      <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--green);margin-bottom:6px;">Locked In</div>
+      <div style="font-family:'Playfair Display',serif;font-size:18px;margin-bottom:2px;" id="confirmed-song"></div>
+      <div style="font-size:12px;color:var(--text-dim);" id="confirmed-artist"></div>
     </div>
-    <div style="margin-top:24px;font-size:13px;color:var(--text-dim);">
-      Waiting for other players...<br>
+
+    <!-- Now playing card — hidden until playback starts -->
+    <div id="now-playing-section" style="display:none;">
+      <div class="scenario-box" style="text-align:center;">
+        <div class="scenario-label" id="np-label">Now Playing</div>
+        <div id="np-art" style="margin:10px auto;"></div>
+        <div style="font-family:'Playfair Display',serif;font-size:20px;margin-bottom:4px;" id="np-song">—</div>
+        <div style="font-size:12px;color:var(--text-dim);margin-bottom:4px;" id="np-artist">—</div>
+        <div style="font-size:13px;color:var(--gold-dim);" id="np-player">—</div>
+      </div>
+
+      <!-- All slots — shown once playback starts -->
+      <div class="section-label" style="margin-top:20px;">All Submissions</div>
+      <div id="np-queue"></div>
+    </div>
+
+    <div id="confirmed-waiting" style="margin-top:16px;text-align:center;font-size:13px;color:var(--text-dim);">
+      Waiting for all players to submit...<br>
       <span id="confirmed-count" style="color:var(--gold-dim);"></span>
     </div>
   </div>
@@ -215,6 +232,8 @@ const state = {
   currentConstraints: [],
   wantsHints: false,
   submitted: false,
+  nowPlayingQueue: [],
+  revealedSongs: {},
 };
 
 // ===================== SCREENS =====================
@@ -291,6 +310,8 @@ function handleMessage(msg) {
       state.currentRound = msg.round;
       state.totalRounds = msg.rounds;
       state.submitted = false;
+      state.nowPlayingQueue = [];
+      state.revealedSongs = {};
       document.getElementById('submit-name').textContent = state.name;
       document.getElementById('submit-round-label').textContent = `Round ${msg.round} of ${msg.rounds}`;
       document.getElementById('submit-scenario').textContent = 'Loading scenario...';
@@ -331,6 +352,40 @@ function handleMessage(msg) {
     case 'spotify_token':
       state.spotifyToken = msg.token;
       localStorage.setItem('spotify_token', msg.token);
+      break;
+
+    case 'playback_start':
+      // Show the queue with all slots hidden
+      state.nowPlayingQueue = msg.queue || [];
+      state.revealedSongs = {};
+      document.getElementById('confirmed-waiting').style.display = 'none';
+      document.getElementById('now-playing-section').style.display = 'block';
+      document.getElementById('np-label').textContent = 'Get ready...';
+      document.getElementById('np-song').textContent = '—';
+      document.getElementById('np-artist').textContent = '';
+      document.getElementById('np-player').textContent = '';
+      document.getElementById('np-art').innerHTML = '';
+      renderNowPlayingQueue();
+      break;
+
+    case 'now_playing':
+      // Reveal the current song
+      state.revealedSongs = state.revealedSongs || {};
+      state.revealedSongs[msg.playerName] = {
+        trackName: msg.trackName,
+        artistName: msg.artistName,
+        albumArt: msg.albumArt,
+      };
+      // Update now playing card
+      document.getElementById('now-playing-section').style.display = 'block';
+      document.getElementById('np-label').textContent = `${msg.index + 1} of ${msg.total}`;
+      document.getElementById('np-song').textContent = msg.trackName;
+      document.getElementById('np-artist').textContent = msg.artistName;
+      document.getElementById('np-player').textContent = msg.playerName;
+      document.getElementById('np-art').innerHTML = msg.albumArt
+        ? `<img src="${msg.albumArt}" style="width:100px;height:100px;border-radius:10px;display:block;margin:0 auto;">`
+        : '';
+      renderNowPlayingQueue();
       break;
 
     case 'judging_start':
@@ -435,6 +490,39 @@ function confirmTrack(idx) {
   document.getElementById('confirmed-song').textContent = track.name;
   document.getElementById('confirmed-artist').textContent = track.artists.map(a=>a.name).join(', ');
   showScreen('screen-confirmed');
+}
+
+// ===================== NOW PLAYING QUEUE =====================
+function renderNowPlayingQueue() {
+  const queue = document.getElementById('np-queue');
+  if (!queue || !state.nowPlayingQueue) return;
+  queue.innerHTML = (state.nowPlayingQueue || []).map(item => {
+    const revealed = state.revealedSongs?.[item.playerName];
+    const isCurrent = revealed && !Object.keys(state.revealedSongs || {})
+      .find((k, i, arr) => arr[i + 1] === item.playerName);
+    return `
+      <div style="
+        display:flex;align-items:center;gap:12px;
+        background:${revealed ? '#0e1a0e' : 'var(--surface)'};
+        border:1px solid ${revealed ? '#2a4a2a' : 'var(--border)'};
+        border-radius:10px;padding:12px;margin-bottom:8px;
+      ">
+        ${revealed?.albumArt
+          ? `<img src="${revealed.albumArt}" style="width:44px;height:44px;border-radius:6px;flex-shrink:0;">`
+          : `<div style="width:44px;height:44px;border-radius:6px;background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;">${revealed ? '🎵' : '?'}</div>`
+        }
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;color:var(--text-dim);margin-bottom:2px;">${item.playerName}</div>
+          ${revealed
+            ? `<div style="font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${revealed.trackName}</div>
+               <div style="font-size:12px;color:var(--text-dim);">${revealed.artistName}</div>`
+            : `<div style="font-size:13px;color:var(--text-dim);font-style:italic;">🎵 Hidden</div>`
+          }
+        </div>
+        ${revealed ? `<div style="font-size:16px;">✓</div>` : ''}
+      </div>
+    `;
+  }).join('');
 }
 
 // ===================== VERDICT =====================
