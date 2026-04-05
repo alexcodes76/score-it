@@ -251,24 +251,27 @@ function showError(elId, msg) {
 }
 
 // ===================== WEBSOCKET =====================
-function connectWS(onOpen) {
-  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  state.ws = new WebSocket(`${proto}://${location.host}`);
-  state.ws.onopen = onOpen;
-  state.ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
-  state.ws.onclose = () => {
-    setTimeout(() => connectWS(() => rejoin()), 2000);
-  };
-}
-
 function send(msg) {
   if (state.ws && state.ws.readyState === 1) state.ws.send(JSON.stringify(msg));
 }
 
-function rejoin() {
-  if (state.name && state.roomCode) {
-    send({ type: 'player_join', code: state.roomCode, name: state.name, wantsHints: state.wantsHints });
-  }
+function connectWS(onOpen) {  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  state.ws = new WebSocket(`${proto}://${location.host}`);
+  state.ws.onopen = onOpen;
+  state.ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+  state.ws.onclose = () => {
+    // Auto-reconnect and rejoin if we were in a game
+    setTimeout(() => {
+      if (state.name && state.roomCode) {
+        connectWS(() => {
+          send({ type: 'player_join', code: state.roomCode, name: state.name, wantsHints: state.wantsHints });
+        });
+      }
+    }, 2000);
+  };
+  state.ws.onerror = () => {
+    // Will trigger onclose which handles reconnect
+  };
 }
 
 // ===================== JOIN =====================
@@ -295,7 +298,6 @@ function handleMessage(msg) {
     case 'joined':
       document.getElementById('waiting-name').textContent = msg.name;
       document.getElementById('waiting-room').textContent = `Room: ${msg.code}`;
-      // Use host's Spotify token if provided
       if (msg.spotifyToken) {
         state.spotifyToken = msg.spotifyToken;
         localStorage.setItem('spotify_token', msg.spotifyToken);
@@ -303,7 +305,10 @@ function handleMessage(msg) {
         const savedToken = localStorage.getItem('spotify_token');
         if (savedToken) state.spotifyToken = savedToken;
       }
-      showScreen('screen-waiting');
+      // Only navigate to waiting if this is a fresh join, not a rejoin
+      if (!msg.rejoin) {
+        showScreen('screen-waiting');
+      }
       break;
 
     case 'round_start':
@@ -352,6 +357,15 @@ function handleMessage(msg) {
     case 'spotify_token':
       state.spotifyToken = msg.token;
       localStorage.setItem('spotify_token', msg.token);
+      break;
+
+    case 'submission_confirmed':
+      if (msg.rejoin && msg.song) {
+        document.getElementById('confirmed-name').textContent = state.name;
+        document.getElementById('confirmed-song').textContent = msg.song;
+        document.getElementById('confirmed-artist').textContent = '';
+        showScreen('screen-confirmed');
+      }
       break;
 
     case 'playback_start':

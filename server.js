@@ -484,16 +484,22 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ type: 'error', message: 'Room not found. Check the code and try again.' }));
         return;
       }
-      if (room.state !== 'lobby') {
-        ws.send(JSON.stringify({ type: 'error', message: 'Game already in progress.' }));
-        return;
-      }
       const name = msg.name?.trim();
       if (!name) {
         ws.send(JSON.stringify({ type: 'error', message: 'Please enter your name.' }));
         return;
       }
-      if (room.players.has(name)) {
+
+      const isRejoin = room.players.has(name);
+
+      // Block new players from joining mid-game, but allow rejoins
+      if (room.state !== 'lobby' && !isRejoin) {
+        ws.send(JSON.stringify({ type: 'error', message: 'Game already in progress.' }));
+        return;
+      }
+
+      // Block name conflicts from genuinely new players
+      if (!isRejoin && room.state === 'lobby' && room.players.has(name)) {
         ws.send(JSON.stringify({ type: 'error', message: 'That name is already taken.' }));
         return;
       }
@@ -501,18 +507,79 @@ wss.on('connection', (ws) => {
       ws.room = room;
       ws.role = 'player';
       ws.playerName = name;
-      room.players.set(name, { ws, submission: null, wantsHints: msg.wantsHints || false });
 
+      // Update or add player entry
+      const existingPlayer = room.players.get(name) || {};
+      room.players.set(name, {
+        ...existingPlayer,
+        ws,
+        wantsHints: msg.wantsHints || existingPlayer.wantsHints || false,
+      });
+
+      // Send join confirmation with token
       ws.send(JSON.stringify({
         type: 'joined',
         name,
         code: room.code,
         spotifyClientId: SPOTIFY_CLIENT_ID,
         spotifyToken: room.spotifyToken || null,
+        rejoin: isRejoin,
       }));
 
-      // Notify host
-      sendToHost(room, { type: 'player_joined', name, playerCount: room.players.size });
+      // If rejoining mid-game, catch them up immediately
+      if (isRejoin && room.state !== 'lobby') {
+        // Send current round info
+        ws.send(JSON.stringify({
+          type: 'round_start',
+          round: room.currentRound,
+          rounds: room.settings.rounds,
+        }));
+
+        // Send current scenario
+        if (room.currentScenario) {
+          ws.send(JSON.stringify({
+            type: 'scenario',
+            scenario: room.currentScenario,
+            constraints: room.currentConstraints,
+            round: room.currentRound,
+            rounds: room.settings.rounds,
+          }));
+        }
+
+        // If they already submitted this round, show confirmed screen
+        const submission = room.submissions[name];
+        if (submission) {
+          ws.send(JSON.stringify({
+            type: 'submission_confirmed',
+            song: submission.trackName || submission.song,
+            rejoin: true,
+          }));
+        }
+
+        // If we're in verdict state, send the verdict
+        if (room.state === 'verdict' && room.verdictData) {
+          ws.send(JSON.stringify({
+            type: 'verdict',
+            verdict: room.verdictData,
+            scores: room.scores,
+            round: room.currentRound,
+            rounds: room.settings.rounds,
+            isLastRound: room.currentRound >= room.settings.rounds,
+            submissions: room.submissions,
+          }));
+        }
+
+        // If judging in progress
+        if (room.state === 'judging') {
+          ws.send(JSON.stringify({ type: 'judging_start' }));
+        }
+      }
+
+      if (!isRejoin) {
+        sendToHost(room, { type: 'player_joined', name, playerCount: room.players.size });
+      } else {
+        sendToHost(room, { type: 'player_rejoined', name });
+      }
       return;
     }
 
