@@ -101,26 +101,37 @@ function getRoomState(room) {
 async function callClaude(system, user) {
   if (!ANTHROPIC_API_KEY) throw new Error('No API key configured on server');
   const fetch = globalThis.fetch;
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      system,
-      messages: [{ role: 'user', content: user }],
-    }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err?.error?.message || `API error ${res.status}`);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 20000); // 20 second timeout
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-5',
+        max_tokens: 1000,
+        system,
+        messages: [{ role: 'user', content: user }],
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `API error ${res.status}`);
+    }
+    const data = await res.json();
+    return data.content[0].text;
+  } catch(e) {
+    clearTimeout(timeout);
+    throw e;
   }
-  const data = await res.json();
-  return data.content[0].text;
 }
 
 async function generateScenario(room) {

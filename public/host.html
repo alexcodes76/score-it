@@ -289,6 +289,9 @@ const state = {
   isPaused: false,
   pauseRemaining: 0,
   playbackTimer: null,
+  playbackTimeout: null,
+  playbackTick: null,
+  playbackPoll: null,
   audioCtx: null,
 };
 
@@ -784,13 +787,11 @@ function startPlaying() {
   });
 
   if (state.spotifyToken && state.spotifyDeviceId && sub?.trackUri) {
-    // Load the specific track — don't resume, always load fresh
     fetch(`https://api.spotify.com/v1/me/player/play?device_id=${state.spotifyDeviceId}`, {
       method: 'PUT',
       headers: { 'Authorization': `Bearer ${state.spotifyToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ uris: [sub.trackUri], position_ms: 0 }),
     }).then(() => {
-      // Broadcast now playing to players
       send({
         type: 'host_now_playing',
         playerName: player,
@@ -800,18 +801,47 @@ function startPlaying() {
         index: state.playbackIndex,
         total: state.playbackQueue.length,
       });
-    }).catch(() => {});
+      // Poll until Spotify confirms it's playing, then start timer
+      waitForPlaybackThenTimer();
+    }).catch(() => {
+      setTimeout(() => startTimer(), 1500);
+    });
+  } else {
+    setTimeout(() => startTimer(), 1000);
   }
+}
 
-  setTimeout(() => startTimer(), 1000);
+function waitForPlaybackThenTimer() {
+  // Poll Spotify up to 10 times (5 seconds) waiting for is_playing = true
+  let attempts = 0;
+  const check = setInterval(async () => {
+    attempts++;
+    try {
+      const res = await fetch('https://api.spotify.com/v1/me/player', {
+        headers: { 'Authorization': `Bearer ${state.spotifyToken}` }
+      });
+      if (!res.ok) { clearInterval(check); startTimer(); return; }
+      const data = await res.json();
+      if (data && data.is_playing) {
+        clearInterval(check);
+        startTimer();
+        return;
+      }
+    } catch(e) {}
+    if (attempts >= 10) { clearInterval(check); startTimer(); }
+  }, 500);
 }
 
 function startTimer() {
-  // Starts the countdown/polling timer for current song
   const dur = state.settings.songDuration;
   const isLast = state.playbackIndex >= state.playbackQueue.length - 1;
   const timerBar = document.getElementById('timer-bar');
   const timerLabel = document.getElementById('timer-label');
+
+  // Clear any existing timers
+  clearTimeout(state.playbackTimeout);
+  clearInterval(state.playbackTick);
+  clearInterval(state.playbackPoll);
 
   if (dur === 0) {
     timerBar.style.width = '100%';
@@ -819,9 +849,9 @@ function startTimer() {
     document.getElementById('skip-btn').textContent = 'Next Song →';
     if (state.spotifyToken) {
       let polls = 0;
-      const poll = setInterval(async () => {
+      state.playbackPoll = setInterval(async () => {
         if (state.isPaused) return;
-        if (++polls > 180) { clearInterval(poll); return; }
+        if (++polls > 180) { clearInterval(state.playbackPoll); return; }
         try {
           const res = await fetch('https://api.spotify.com/v1/me/player', {
             headers: { 'Authorization': `Bearer ${state.spotifyToken}` }
@@ -829,14 +859,13 @@ function startTimer() {
           if (!res.ok) return;
           const data = await res.json();
           if (data && !data.is_playing && data.progress_ms > 5000) {
-            clearInterval(poll);
+            clearInterval(state.playbackPoll);
             if (!state.isPaused) {
               isLast ? (await playChime('judge'), finishPlayback()) : (await playChime('next'), advanceToNext());
             }
           }
         } catch(e) {}
       }, 2000);
-      state.playbackTimer = poll;
     }
     return;
   }
@@ -851,17 +880,17 @@ function startTimer() {
   document.getElementById('skip-btn').textContent = 'Next Song →';
 
   let remaining = dur;
-  const tick = setInterval(() => {
+  state.playbackTick = setInterval(() => {
     if (!state.isPaused) {
       remaining--;
       state.pauseRemaining = remaining;
       timerLabel.textContent = formatTime(Math.max(0, remaining));
-      if (remaining <= 0) clearInterval(tick);
+      if (remaining <= 0) clearInterval(state.playbackTick);
     }
   }, 1000);
 
-  state.playbackTimer = setTimeout(async () => {
-    clearInterval(tick);
+  state.playbackTimeout = setTimeout(async () => {
+    clearInterval(state.playbackTick);
     if (!state.isPaused) {
       spotifyPause();
       isLast ? (await playChime('judge'), finishPlayback()) : (await playChime('next'), advanceToNext());
@@ -876,8 +905,9 @@ function advanceToNext() {
 
 function playCurrentSong() {
   if (state.playbackIndex >= state.playbackQueue.length) { finishPlayback(); return; }
-  clearTimeout(state.playbackTimer);
-  clearInterval(state.playbackTimer);
+  clearTimeout(state.playbackTimeout);
+  clearInterval(state.playbackTick);
+  clearInterval(state.playbackPoll);
   state.isPaused = false;
   document.getElementById('pause-btn').textContent = '⏸ Pause';
 
@@ -929,7 +959,6 @@ function spotifyResume() {
 function togglePause() {
   const btn = document.getElementById('pause-btn');
   if (state.isPaused) {
-    // Initial play tap — use startPlaying for full Safari gesture trust
     if (btn.textContent === '▶ Play') {
       startPlaying();
       return;
@@ -944,15 +973,15 @@ function togglePause() {
       timerBar.style.transition = `width ${remaining}s linear`;
       timerBar.style.width = '0%';
       const isLast = state.playbackIndex >= state.playbackQueue.length - 1;
-      const tick = setInterval(() => {
+      state.playbackTick = setInterval(() => {
         if (!state.isPaused) {
           state.pauseRemaining--;
           document.getElementById('timer-label').textContent = formatTime(Math.max(0, state.pauseRemaining));
-          if (state.pauseRemaining <= 0) clearInterval(tick);
+          if (state.pauseRemaining <= 0) clearInterval(state.playbackTick);
         }
       }, 1000);
-      state.playbackTimer = setTimeout(async () => {
-        clearInterval(tick);
+      state.playbackTimeout = setTimeout(async () => {
+        clearInterval(state.playbackTick);
         if (!state.isPaused) {
           spotifyPause();
           isLast ? (await playChime('judge'), finishPlayback()) : (await playChime('next'), advanceToNext());
@@ -962,22 +991,25 @@ function togglePause() {
   } else {
     state.isPaused = true;
     btn.textContent = '▶ Resume';
-    clearTimeout(state.playbackTimer);
-    clearInterval(state.playbackTimer);
+    clearTimeout(state.playbackTimeout);
+    clearInterval(state.playbackTick);
+    clearInterval(state.playbackPoll);
     spotifyPause();
     document.getElementById('timer-bar').style.transition = 'none';
   }
 }
 
 function restartSong() {
-  clearTimeout(state.playbackTimer);
-  clearInterval(state.playbackTimer);
+  clearTimeout(state.playbackTimeout);
+  clearInterval(state.playbackTick);
+  clearInterval(state.playbackPoll);
   playCurrentSong();
 }
 
 function skipSong() {
-  clearTimeout(state.playbackTimer);
-  clearInterval(state.playbackTimer);
+  clearTimeout(state.playbackTimeout);
+  clearInterval(state.playbackTick);
+  clearInterval(state.playbackPoll);
   spotifyPause();
   const isLast = state.playbackIndex >= state.playbackQueue.length - 1;
   isLast ? playChime('judge').then(() => finishPlayback()) : playChime('next').then(() => advanceToNext());
