@@ -387,7 +387,6 @@ function handleMessage(msg) {
       document.getElementById('np-player').textContent = '';
       document.getElementById('np-art').innerHTML = '';
       renderNowPlayingQueue();
-      // Navigate to confirmed screen so they can see the queue
       showScreen('screen-confirmed');
       break;
 
@@ -398,6 +397,7 @@ function handleMessage(msg) {
         artistName: msg.artistName,
         albumArt: msg.albumArt,
       };
+      // Update now playing card
       document.getElementById('now-playing-section').style.display = 'block';
       document.getElementById('np-label').textContent = `${msg.index + 1} of ${msg.total}`;
       document.getElementById('np-song').textContent = msg.trackName;
@@ -406,22 +406,34 @@ function handleMessage(msg) {
       document.getElementById('np-art').innerHTML = msg.albumArt
         ? `<img src="${msg.albumArt}" style="width:100px;height:100px;border-radius:10px;display:block;margin:0 auto;">`
         : '';
+      // Only navigate to confirmed screen if not already there
+      const activeScreen = document.querySelector('.screen.active');
+      if (!activeScreen || activeScreen.id !== 'screen-confirmed') {
+        showScreen('screen-confirmed');
+      }
       renderNowPlayingQueue();
-      // Make sure they're on the confirmed screen
-      showScreen('screen-confirmed');
       break;
 
     case 'judging_start':
-      showScreen('screen-verdict');
-      document.getElementById('verdict-loading').style.display = 'block';
-      document.getElementById('verdict-content').style.display = 'none';
-      document.getElementById('verdict-round-label').textContent = `Round ${state.currentRound} of ${state.totalRounds}`;
+      // Show judging state on whatever screen they're on
+      document.getElementById('confirmed-waiting').style.display = 'block';
+      document.getElementById('confirmed-waiting').innerHTML = `
+        <div style="text-align:center;padding:20px 0;">
+          <div class="loading-dots" style="justify-content:center;"><span></span><span></span><span></span></div>
+          <div style="margin-top:12px;font-size:14px;color:var(--gold);">The judge is deliberating...</div>
+        </div>`;
+      showScreen('screen-confirmed');
       break;
 
     case 'verdict':
-      // Navigate to verdict screen even if judging_start was missed
-      showScreen('screen-verdict');
+      // Reset confirmed-waiting in case we come back
+      document.getElementById('confirmed-waiting').style.display = 'none';
+      document.getElementById('confirmed-waiting').innerHTML = 'Waiting for all players to submit...';
+      // Always navigate to verdict
       document.getElementById('verdict-loading').style.display = 'none';
+      document.getElementById('verdict-content').style.display = 'none';
+      document.getElementById('verdict-round-label').textContent = `Round ${state.currentRound} of ${state.totalRounds}`;
+      showScreen('screen-verdict');
       renderVerdict(msg.verdict, msg.scores, msg.isLastRound);
       break;
 

@@ -1019,17 +1019,15 @@ function finishPlayback() {
   spotifyPause();
   document.getElementById('now-playing-song').textContent = 'All songs played';
   document.getElementById('now-playing-player').textContent = '';
-  document.getElementById('now-playing-label').textContent = 'Judging...';
+  document.getElementById('now-playing-label').textContent = 'Ready to judge';
   document.getElementById('now-playing-art-wrap').innerHTML = '';
   document.getElementById('timer-bar').style.cssText = 'height:100%;background:var(--gold);border-radius:2px;width:100%;transition:none;';
   document.getElementById('timer-label').textContent = '';
   document.getElementById('skip-btn').style.display = 'none';
   document.getElementById('pause-btn').style.display = 'none';
   document.getElementById('restart-btn').style.display = 'none';
-  document.getElementById('judge-btn').style.display = 'none';
+  document.getElementById('judge-btn').style.display = 'block';
   renderPlaybackQueue();
-  // Auto-judge after a short pause
-  setTimeout(() => judgeRound(), 1500);
 }
 
 function judgeRound() {
