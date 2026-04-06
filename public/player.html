@@ -89,6 +89,15 @@
   </div>
 </div>
 
+<!-- CONNECTION STATUS BAR -->
+<div id="connection-bar" style="
+  display:none;position:fixed;top:0;left:0;right:0;z-index:999;
+  background:#c94c4c;color:#fff;text-align:center;
+  padding:8px 16px;font-size:13px;font-family:'DM Sans',sans-serif;
+">
+  ⚠️ Reconnecting...
+</div>
+
 <!-- WAITING -->
 <div id="screen-waiting" class="screen">
   <div class="app-header">
@@ -258,12 +267,18 @@ function send(msg) {
 function connectWS(onOpen) {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   state.ws = new WebSocket(`${proto}://${location.host}`);
-  state.ws.onopen = onOpen;
+  state.ws.onopen = () => {
+    document.getElementById('connection-bar').style.display = 'none';
+    onOpen();
+  };
   state.ws.onmessage = (e) => {
     if (e.data === '__ping__') { state.ws.send('__pong__'); return; }
     try { handleMessage(JSON.parse(e.data)); } catch(err) {}
   };
   state.ws.onclose = () => {
+    if (state.name && state.roomCode) {
+      document.getElementById('connection-bar').style.display = 'block';
+    }
     setTimeout(() => {
       if (state.name && state.roomCode) {
         connectWS(() => {
@@ -627,6 +642,44 @@ window.onload = () => {
   const saved = localStorage.getItem('spotify_token');
   if (saved) state.spotifyToken = saved;
 };
+
+// ===================== WAKE/VISIBILITY RECONNECT =====================
+// When phone wakes up or tab becomes visible again, check connection
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') {
+    // Phone just woke up — check if we need to reconnect
+    setTimeout(() => {
+      if (state.name && state.roomCode) {
+        const wsState = state.ws ? state.ws.readyState : -1;
+        if (wsState !== WebSocket.OPEN) {
+          // Connection is dead — reconnect
+          connectWS(() => {
+            send({ type: 'player_join', code: state.roomCode, name: state.name, wantsHints: state.wantsHints });
+          });
+        } else {
+          // Connection looks open but may be stale — send a test ping
+          try { state.ws.send(JSON.stringify({ type: 'ping' })); } catch(e) {
+            connectWS(() => {
+              send({ type: 'player_join', code: state.roomCode, name: state.name, wantsHints: state.wantsHints });
+            });
+          }
+        }
+      }
+    }, 500);
+  }
+});
+
+// Also handle the online event for when network reconnects
+window.addEventListener('online', () => {
+  if (state.name && state.roomCode) {
+    const wsState = state.ws ? state.ws.readyState : -1;
+    if (wsState !== WebSocket.OPEN) {
+      connectWS(() => {
+        send({ type: 'player_join', code: state.roomCode, name: state.name, wantsHints: state.wantsHints });
+      });
+    }
+  }
+});
 </script>
 </body>
 </html>

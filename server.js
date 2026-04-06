@@ -332,10 +332,16 @@ wss.on('connection', (ws) => {
   ws.playerName = null;
 
   ws.on('message', async (raw) => {
+    // Handle pong responses from clients
+    if (raw.toString() === '__pong__') { ws.isAlive = true; return; }
+
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
 
     const { type } = msg;
+
+    // Handle client-side ping test
+    if (type === 'ping') { ws.isAlive = true; return; }
 
     // ---- HOST: Create room ----
     if (type === 'host_create') {
@@ -733,12 +739,19 @@ wss.on('connection', (ws) => {
 });
 
 // ===================== KEEP-ALIVE PING =====================
-// Ping all clients every 25 seconds to keep connections alive on mobile
 const pingInterval = setInterval(() => {
   wss.clients.forEach(ws => {
-    if (ws.isAlive === false) { ws.terminate(); return; }
+    if (ws.isAlive === false) {
+      // Only terminate hosts on failed ping — players may just be sleeping
+      if (ws.role === 'host') {
+        ws.terminate();
+      }
+      // For players, just reset so next ping cycle gives them another chance
+      ws.isAlive = true;
+      return;
+    }
     ws.isAlive = false;
-    ws.ping();
+    try { ws.ping(); } catch(e) {}
   });
 }, 25000);
 
