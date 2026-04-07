@@ -848,63 +848,43 @@ function startTimer() {
   const timerBar = document.getElementById('timer-bar');
   const timerLabel = document.getElementById('timer-label');
 
-  // Clear any existing timers
   clearTimeout(state.playbackTimeout);
   clearInterval(state.playbackTick);
   clearInterval(state.playbackPoll);
+  timerLabel.textContent = '';
 
   if (dur === 0) {
+    timerBar.style.transition = 'none';
     timerBar.style.width = '100%';
-    timerLabel.textContent = 'Playing';
-    document.getElementById('skip-btn').textContent = 'Next Song →';
-    if (state.spotifyToken) {
-      let polls = 0;
-      state.playbackPoll = setInterval(async () => {
-        if (state.isPaused) return;
-        if (++polls > 180) { clearInterval(state.playbackPoll); return; }
-        try {
-          const res = await fetch('https://api.spotify.com/v1/me/player', {
-            headers: { 'Authorization': `Bearer ${state.spotifyToken}` }
-          });
-          if (!res.ok) return;
-          const data = await res.json();
-          if (data && !data.is_playing && data.progress_ms > 5000) {
-            clearInterval(state.playbackPoll);
-            if (!state.isPaused) {
-              isLast ? (await playChime('judge'), finishPlayback()) : (await playChime('next'), advanceToNext());
-            }
-          }
-        } catch(e) {}
-      }, 2000);
-    }
+    let polls = 0;
+    state.playbackPoll = setInterval(async () => {
+      if (++polls > 180) { clearInterval(state.playbackPoll); return; }
+      try {
+        const res = await fetch('https://api.spotify.com/v1/me/player', {
+          headers: { 'Authorization': `Bearer ${state.spotifyToken}` }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data && !data.is_playing && data.progress_ms > 5000) {
+          clearInterval(state.playbackPoll);
+          if (!state.isPaused) isLast ? (await playChime('judge'), finishPlayback()) : (await playChime('next'), advanceToNext());
+        }
+      } catch(e) {}
+    }, 2000);
     return;
   }
 
-  state.pauseRemaining = dur;
+  // Pure CSS animation — no JS tick, no isPaused dependency
   timerBar.style.transition = 'none';
   timerBar.style.width = '100%';
   void timerBar.offsetWidth;
   timerBar.style.transition = `width ${dur}s linear`;
   timerBar.style.width = '0%';
-  timerLabel.textContent = formatTime(dur);
-  document.getElementById('skip-btn').textContent = 'Next Song →';
 
-  let remaining = dur;
-  state.playbackTick = setInterval(() => {
-    if (!state.isPaused) {
-      remaining--;
-      state.pauseRemaining = remaining;
-      timerLabel.textContent = formatTime(Math.max(0, remaining));
-      if (remaining <= 0) clearInterval(state.playbackTick);
-    }
-  }, 1000);
-
+  // Advance after dur seconds — runs regardless of isPaused state
   state.playbackTimeout = setTimeout(async () => {
-    clearInterval(state.playbackTick);
-    if (!state.isPaused) {
-      spotifyPause();
-      isLast ? (await playChime('judge'), finishPlayback()) : (await playChime('next'), advanceToNext());
-    }
+    spotifyPause();
+    isLast ? (await playChime('judge'), finishPlayback()) : (await playChime('next'), advanceToNext());
   }, dur * 1000);
 }
 
@@ -968,44 +948,47 @@ function spotifyResume() {
 
 function togglePause() {
   const btn = document.getElementById('pause-btn');
+  const timerBar = document.getElementById('timer-bar');
+
   if (state.isPaused) {
     if (btn.textContent === '▶ Play') {
       startPlaying();
       return;
     }
+    // Resume
     state.isPaused = false;
     btn.textContent = '⏸ Pause';
     spotifyResume();
-    const remaining = state.pauseRemaining;
-    if (state.settings.songDuration > 0 && remaining > 0) {
-      const timerBar = document.getElementById('timer-bar');
+
+    // Resume CSS bar animation from current width
+    const currentWidth = parseFloat(timerBar.style.width) || 0;
+    const dur = state.settings.songDuration;
+    if (dur > 0 && currentWidth > 0) {
+      const remaining = Math.round((currentWidth / 100) * dur);
       void timerBar.offsetWidth;
       timerBar.style.transition = `width ${remaining}s linear`;
       timerBar.style.width = '0%';
+
       const isLast = state.playbackIndex >= state.playbackQueue.length - 1;
-      state.playbackTick = setInterval(() => {
-        if (!state.isPaused) {
-          state.pauseRemaining--;
-          document.getElementById('timer-label').textContent = formatTime(Math.max(0, state.pauseRemaining));
-          if (state.pauseRemaining <= 0) clearInterval(state.playbackTick);
-        }
-      }, 1000);
       state.playbackTimeout = setTimeout(async () => {
-        clearInterval(state.playbackTick);
-        if (!state.isPaused) {
-          spotifyPause();
-          isLast ? (await playChime('judge'), finishPlayback()) : (await playChime('next'), advanceToNext());
-        }
+        spotifyPause();
+        isLast ? (await playChime('judge'), finishPlayback()) : (await playChime('next'), advanceToNext());
       }, remaining * 1000);
     }
   } else {
+    // Pause
     state.isPaused = true;
     btn.textContent = '▶ Resume';
     clearTimeout(state.playbackTimeout);
     clearInterval(state.playbackTick);
     clearInterval(state.playbackPoll);
     spotifyPause();
-    document.getElementById('timer-bar').style.transition = 'none';
+    // Freeze bar at current position
+    const computedWidth = getComputedStyle(timerBar).width;
+    const parentWidth = timerBar.parentElement.offsetWidth;
+    const pct = (parseFloat(computedWidth) / parentWidth) * 100;
+    timerBar.style.transition = 'none';
+    timerBar.style.width = pct + '%';
   }
 }
 

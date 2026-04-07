@@ -144,27 +144,29 @@ async function generateScenario(room) {
     ? 'Also generate exactly 2 constraints from different categories.'
     : '';
 
-  const usedList = Array.from(room.usedScenarios).slice(-10).join('\n- ') || 'none yet';
+  const usedList = Array.from(room.usedScenarios).join(', ') || 'none yet';
+  const themePool = ['unexpected triumph','quiet grief','reckless joy','reluctant farewell','first impression','final conversation','secret kept too long','unexpected kindness','childhood memory','late night clarity','public embarrassment','private victory','unrequited feeling','unexpected reunion','moment of courage','productive anger','nostalgia for a place','letting go','starting over','being truly seen','nervous anticipation','peaceful solitude','bitter irony','pure celebration','identity crisis','sudden perspective','unspoken apology','found family','fading memory','righteous defiance','tender vulnerability','earned rest'];
+  const shuffled = themePool.sort(() => Math.random() - 0.5).slice(0, 6).join(', ');
 
   const prompt = `Generate a scenario for round ${room.currentRound} of ${room.settings.rounds} at ${diff} difficulty.
 
-The scenario should be a specific, evocative situation, feeling, or moment that a song could perfectly capture. Keep it to 1-3 sentences. Be creative and varied.
+The scenario must be a specific, evocative situation or moment — 1-2 sentences. Surprising and concrete, not abstract or cliché.
 
-IMPORTANT — avoid these themes and emotional territories already used this game:
-- ${usedList}
+STRICT: Do NOT use any theme similar to these already used this game: ${usedList}
 
-Pick something emotionally distinct from the above. Do not repeat driving, road trips, weddings, or any theme already covered.
+Consider these unused emotional territories: ${shuffled}
+
+Bad example: "A moment of reflection." Good example: "The specific silence of a house after everyone has left for the last time."
 
 ${constraintNote}
 
 Return JSON: {"text": "The scenario.", "theme": "2-3 word theme label", "constraints": []}
-For easy, constraints array is empty. For medium, one item. For hard, two items.
-Constraint format examples: "Genre: Hip-hop only", "Decade: 1990s only", "Singer: Female artist only", "Format: Bands only", "Title: One-word titles only"`;
+constraints is [] for easy, one item for medium, two for hard.
+Constraint examples: "Genre: Hip-hop only", "Decade: 1990s only", "Singer: Female artist only", "Format: Bands only"`;
 
   const raw = await callClaude(system, prompt);
-  const clean = raw.replace(/```json|```/g, '').trim();
+  const clean = raw.replace(/\`\`\`json|\`\`\`/g, '').trim();
   const parsed = JSON.parse(clean);
-  // Track theme label for better repetition avoidance
   if (parsed.theme) room.usedScenarios.add(parsed.theme);
   else room.usedScenarios.add(parsed.text.slice(0, 40));
   return parsed;
