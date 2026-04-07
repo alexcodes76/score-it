@@ -61,6 +61,7 @@ function broadcast(room, message, excludeWs = null) {
   }
   for (const [, player] of room.players) {
     if (!player.ws) continue;
+    if (!player.ws) continue;
     if (player.ws !== excludeWs && player.ws.readyState === 1) {
       player.ws.send(data);
     }
@@ -381,13 +382,12 @@ wss.on('connection', (ws) => {
     // ---- HOST: Playback started — send queue to players ----
     if (type === 'host_playback_start' && ws.role === 'host') {
       const room = ws.room;
-      // Send queue to players with songs hidden
       const hiddenQueue = (msg.queue || []).map(playerName => ({
         playerName,
         hidden: true,
       }));
       for (const [, player] of room.players) {
-        if (player.ws.readyState === 1) {
+        if (player.ws && player.ws.readyState === 1) {
           player.ws.send(JSON.stringify({
             type: 'playback_start',
             queue: hiddenQueue,
@@ -401,7 +401,7 @@ wss.on('connection', (ws) => {
     if (type === 'host_now_playing' && ws.role === 'host') {
       const room = ws.room;
       for (const [, player] of room.players) {
-        if (player.ws.readyState === 1) {
+        if (player.ws && player.ws.readyState === 1) {
           player.ws.send(JSON.stringify({
             type: 'now_playing',
             playerName: msg.playerName,
@@ -502,7 +502,7 @@ wss.on('connection', (ws) => {
       room.spotifyToken = msg.token;
       // Push token to all currently connected players
       for (const [, player] of room.players) {
-        if (player.ws.readyState === 1) {
+        if (player.ws && player.ws.readyState === 1) {
           player.ws.send(JSON.stringify({ type: 'spotify_token', token: msg.token }));
         }
       }

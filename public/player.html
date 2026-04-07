@@ -527,6 +527,16 @@ function confirmTrack(idx) {
   const track = window._searchTracks[idx];
   const song = `${track.name} — ${track.artists.map(a=>a.name).join(', ')}`;
 
+  // Check connection before submitting
+  if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+    showError('submit-error', 'Connection lost — reconnecting. Please try again in a moment.');
+    // Attempt reconnect
+    connectWS(() => {
+      send({ type: 'player_join', code: state.roomCode, name: state.name, wantsHints: state.wantsHints });
+    });
+    return;
+  }
+
   send({
     type: 'player_submit',
     song,
@@ -538,7 +548,6 @@ function confirmTrack(idx) {
 
   state.submitted = true;
 
-  // Show confirmed screen
   document.getElementById('confirmed-name').textContent = state.name;
   document.getElementById('confirmed-song').textContent = track.name;
   document.getElementById('confirmed-artist').textContent = track.artists.map(a=>a.name).join(', ');

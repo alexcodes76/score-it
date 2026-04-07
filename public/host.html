@@ -192,6 +192,7 @@
     </div>
 
     <button class="btn btn-primary" id="all-in-btn" style="margin-top:16px;display:none;" onclick="goToPlayback()">All In — Play Songs →</button>
+    <button class="btn btn-ghost" id="force-start-btn" style="margin-top:8px;display:none;" onclick="goToPlayback()">Start anyway (skip missing submissions)</button>
   </div>
 </div>
 
@@ -521,19 +522,41 @@ function handleMessage(msg) {
       if (!state.players.includes(msg.name)) state.players.push(msg.name);
       renderLobbyPlayers();
       document.getElementById('start-btn').disabled = state.players.length < 1;
-      // Share current Spotify token with the new player
       if (state.spotifyToken) {
         send({ type: 'host_token', token: state.spotifyToken });
       }
       break;
 
+    case 'player_rejoined':
+      // Player reconnected mid-game — don't change player list, just log
+      console.log(`${msg.name} reconnected`);
+      break;
+
     case 'player_left':
-      state.players = state.players.filter(p => p !== msg.name);
-      renderLobbyPlayers();
-      document.getElementById('start-btn').disabled = state.players.length < 1;
+      // Only remove from lobby — not mid-game
+      if (state.currentRound === 0) {
+        state.players = state.players.filter(p => p !== msg.name);
+        renderLobbyPlayers();
+        document.getElementById('start-btn').disabled = state.players.length < 1;
+      }
+      break;
+
+    case 'player_disconnected':
+      // Mid-game disconnect — keep in player list, just show as disconnected
+      console.log(`${msg.name} disconnected (keeping in game)`);
       break;
 
     case 'round_start':
+      // Clear ALL timers from previous round first
+      clearTimeout(state.playbackTimeout);
+      clearInterval(state.playbackTick);
+      clearInterval(state.playbackPoll);
+      state.playbackTimeout = null;
+      state.playbackTick = null;
+      state.playbackPoll = null;
+      state.isPaused = true;
+      state.playbackIndex = 0;
+      state.playbackQueue = [];
       state.currentRound = msg.round;
       state.totalRounds = msg.rounds;
       state.submissions = {};
@@ -544,6 +567,7 @@ function handleMessage(msg) {
       document.getElementById('constraints-box').style.display = 'none';
       document.getElementById('submission-progress').textContent = `0 / ${state.players.length + 1}`;
       document.getElementById('all-in-btn').style.display = 'none';
+      document.getElementById('force-start-btn').style.display = 'none';
       document.getElementById('host-submission-area').style.display = 'block';
       document.getElementById('host-submission-confirmed').style.display = 'none';
       document.getElementById('host-search-input').disabled = false;
@@ -573,6 +597,7 @@ function handleMessage(msg) {
       if (msg.allIn) {
         if (msg.submissions) state.submissions = msg.submissions;
         document.getElementById('all-in-btn').style.display = 'block';
+        document.getElementById('force-start-btn').style.display = 'none';
         playChime('next');
       }
       break;
@@ -704,12 +729,20 @@ function hostConfirmTrack(idx) {
   document.getElementById('host-submission-song').textContent = song;
   document.getElementById('host-submission-confirmed').style.display = 'block';
   document.getElementById('host-search-input').disabled = true;
+  // Show force-start in case a player is stuck
+  document.getElementById('force-start-btn').style.display = 'block';
 }
 
 // ===================== PLAYBACK =====================
 function goToPlayback() {
+  clearTimeout(state.playbackTimeout);
+  clearInterval(state.playbackTick);
+  clearInterval(state.playbackPoll);
+
+  // Only include players who actually submitted — skip anyone stuck
   const allPlayers = [...state.players, 'Host'];
-  state.playbackQueue = allPlayers.sort(() => Math.random() - 0.5);
+  const submitted = allPlayers.filter(p => state.submissions[p]);
+  state.playbackQueue = submitted.sort(() => Math.random() - 0.5);
   state.playbackIndex = 0;
   state.isPaused = true;
 
@@ -720,6 +753,7 @@ function goToPlayback() {
   document.getElementById('pause-btn').textContent = '▶ Play';
   document.getElementById('restart-btn').style.display = 'block';
   document.getElementById('play-songs-btn').style.display = 'none';
+  document.getElementById('force-start-btn').style.display = 'none';
 
   showScreen('screen-playback');
   showCurrentSongInfo();
@@ -772,7 +806,6 @@ function showCurrentSongInfo() {
 }
 
 function startPlaying() {
-  document.getElementById('play-songs-btn').style.display = 'none';
   state.isPaused = false;
   document.getElementById('pause-btn').textContent = '⏸ Pause';
 
@@ -786,6 +819,7 @@ function startPlaying() {
     submissions: state.submissions,
   });
 
+  // Load and play the track
   if (state.spotifyToken && state.spotifyDeviceId && sub?.trackUri) {
     fetch(`https://api.spotify.com/v1/me/player/play?device_id=${state.spotifyDeviceId}`, {
       method: 'PUT',
@@ -801,35 +835,11 @@ function startPlaying() {
         index: state.playbackIndex,
         total: state.playbackQueue.length,
       });
-      // Poll until Spotify confirms it's playing, then start timer
-      waitForPlaybackThenTimer();
-    }).catch(() => {
-      setTimeout(() => startTimer(), 1500);
-    });
-  } else {
-    setTimeout(() => startTimer(), 1000);
+    }).catch(() => {});
   }
-}
 
-function waitForPlaybackThenTimer() {
-  // Poll Spotify up to 10 times (5 seconds) waiting for is_playing = true
-  let attempts = 0;
-  const check = setInterval(async () => {
-    attempts++;
-    try {
-      const res = await fetch('https://api.spotify.com/v1/me/player', {
-        headers: { 'Authorization': `Bearer ${state.spotifyToken}` }
-      });
-      if (!res.ok) { clearInterval(check); startTimer(); return; }
-      const data = await res.json();
-      if (data && data.is_playing) {
-        clearInterval(check);
-        startTimer();
-        return;
-      }
-    } catch(e) {}
-    if (attempts >= 10) { clearInterval(check); startTimer(); }
-  }, 500);
+  // Start timer after 1s — runs regardless of whether audio started
+  setTimeout(() => startTimer(), 1000);
 }
 
 function startTimer() {
