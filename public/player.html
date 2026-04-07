@@ -118,6 +118,17 @@
     <div id="submit-round-label" class="app-subtitle"></div>
   </div>
   <div class="content">
+    <!-- Countdown timer bar -->
+    <div id="submit-timer-wrap" style="margin-bottom:10px;display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+        <span style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);">Time to pick</span>
+        <span id="submit-timer-label" style="font-size:13px;color:var(--gold);font-family:'Playfair Display',serif;">1:00</span>
+      </div>
+      <div style="height:3px;background:var(--border);border-radius:2px;overflow:hidden;">
+        <div id="submit-timer-bar" style="height:100%;background:var(--gold);border-radius:2px;width:100%;transition:width 1s linear;"></div>
+      </div>
+    </div>
+
     <div class="scenario-box">
       <div class="scenario-label" id="submit-scenario-label">The Scenario</div>
       <div class="scenario-text" id="submit-scenario"></div>
@@ -243,6 +254,7 @@ const state = {
   submitted: false,
   nowPlayingQueue: [],
   revealedSongs: {},
+  submitTimer: null,
 };
 
 // ===================== SCREENS =====================
@@ -333,6 +345,7 @@ function handleMessage(msg) {
       state.submitted = false;
       state.nowPlayingQueue = [];
       state.revealedSongs = {};
+      stopSubmitTimer();
       // Reset all submission UI
       document.getElementById('submit-name').textContent = state.name;
       document.getElementById('submit-round-label').textContent = `Round ${msg.round} of ${msg.rounds}`;
@@ -353,12 +366,13 @@ function handleMessage(msg) {
       state.currentScenario = msg.scenario;
       state.currentConstraints = msg.constraints || [];
       document.getElementById('submit-scenario').textContent = msg.scenario;
-      document.getElementById('submit-scenario-label').textContent =
-        msg.constraints?.length ? 'The Scenario' : 'The Scenario';
+      document.getElementById('submit-scenario-label').textContent = 'The Scenario';
       if (msg.constraints && msg.constraints.length > 0) {
         document.getElementById('submit-constraints').style.display = 'block';
         document.getElementById('submit-constraints-text').textContent = msg.constraints.map(c => `• ${c}`).join('\n');
       }
+      // Start 60-second submission countdown
+      startSubmitTimer(60);
       break;
 
     case 'hints':
@@ -547,11 +561,52 @@ function confirmTrack(idx) {
   });
 
   state.submitted = true;
+  stopSubmitTimer();
 
   document.getElementById('confirmed-name').textContent = state.name;
   document.getElementById('confirmed-song').textContent = track.name;
   document.getElementById('confirmed-artist').textContent = track.artists.map(a=>a.name).join(', ');
   showScreen('screen-confirmed');
+}
+
+// ===================== SUBMISSION TIMER =====================
+function startSubmitTimer(seconds) {
+  clearInterval(state.submitTimer);
+  const wrap = document.getElementById('submit-timer-wrap');
+  const bar = document.getElementById('submit-timer-bar');
+  const label = document.getElementById('submit-timer-label');
+  wrap.style.display = 'block';
+
+  let remaining = seconds;
+  bar.style.transition = 'none';
+  bar.style.width = '100%';
+  void bar.offsetWidth;
+
+  function tick() {
+    remaining--;
+    const pct = (remaining / seconds) * 100;
+    bar.style.transition = 'none';
+    bar.style.width = pct + '%';
+    const m = Math.floor(remaining / 60);
+    const s = remaining % 60;
+    label.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+    // Turn red in last 10 seconds
+    bar.style.background = remaining <= 10 ? '#c94c4c' : 'var(--gold)';
+    label.style.color = remaining <= 10 ? '#c94c4c' : 'var(--gold)';
+    if (remaining <= 0) {
+      clearInterval(state.submitTimer);
+      label.textContent = 'Time!';
+    }
+  }
+
+  tick();
+  state.submitTimer = setInterval(tick, 1000);
+}
+
+function stopSubmitTimer() {
+  clearInterval(state.submitTimer);
+  const wrap = document.getElementById('submit-timer-wrap');
+  if (wrap) wrap.style.display = 'none';
 }
 
 // ===================== NOW PLAYING QUEUE =====================

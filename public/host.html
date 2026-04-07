@@ -203,6 +203,13 @@
     <div id="playback-round-label" class="app-subtitle"></div>
   </div>
   <div class="content">
+    <!-- Scenario shown during playback -->
+    <div style="background:#0f0e0b;border:1px solid var(--border);border-radius:10px;padding:12px 16px;margin-bottom:12px;">
+      <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--gold-dim);margin-bottom:6px;">The Scenario</div>
+      <div style="font-family:'Playfair Display',serif;font-size:14px;font-style:italic;color:var(--text-mid);line-height:1.5;" id="playback-scenario-text"></div>
+      <div id="playback-constraints" style="display:none;margin-top:8px;font-size:12px;color:var(--gold-dim);"></div>
+    </div>
+
     <div class="now-playing-card">
       <div style="font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--gold-dim);margin-bottom:10px;" id="now-playing-label">Now Playing</div>
       <div style="font-family:'Playfair Display',serif;font-size:22px;color:var(--text);margin-bottom:4px;" id="now-playing-song">—</div>
@@ -747,6 +754,14 @@ function goToPlayback() {
   state.isPaused = true;
 
   document.getElementById('playback-round-label').textContent = `Round ${state.currentRound} of ${state.totalRounds}`;
+  document.getElementById('playback-scenario-text').textContent = state.currentScenario || '';
+  const pc = document.getElementById('playback-constraints');
+  if (state.currentConstraints && state.currentConstraints.length > 0) {
+    pc.style.display = 'block';
+    pc.textContent = state.currentConstraints.join(' · ');
+  } else {
+    pc.style.display = 'none';
+  }
   document.getElementById('judge-btn').style.display = 'none';
   document.getElementById('skip-btn').style.display = 'block';
   document.getElementById('pause-btn').style.display = 'block';

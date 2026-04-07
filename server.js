@@ -138,10 +138,19 @@ async function callClaude(system, user) {
 async function generateScenario(room) {
   const diff = room.settings.difficulty;
   const system = `You are the host of Score It!, a music party game. Generate vivid, creative scenarios players respond to by picking a song. You must respond in valid JSON only, no preamble.`;
+
+  const constraintCategories = {
+    genre: ['Genre: Hip-hop only', 'Genre: Country only', 'Genre: R&B only', 'Genre: Rock only', 'Genre: Pop only', 'Genre: Folk only', 'Genre: Electronic only', 'Genre: Jazz only'],
+    decade: ['Decade: 1960s only', 'Decade: 1970s only', 'Decade: 1980s only', 'Decade: 1990s only', 'Decade: 2000s only', 'Decade: 2010s only'],
+    singer: ['Singer: Female artist only', 'Singer: Male artist only'],
+    format: ['Format: Solo artist only', 'Format: Bands/groups only'],
+    tone: ['Tone: Must be funny or ironic', 'Tone: Must be deeply serious', 'Tone: Must be uplifting/celebratory', 'Tone: Must be the opposite mood of the scenario', 'Tone: Must be bittersweet', 'Tone: Must be angry or defiant', 'Tone: Must be tender/gentle'],
+  };
+
   const constraintNote = diff === 'medium'
-    ? 'Also generate exactly 1 constraint from: genre, decade, singer gender, solo/band, title format, song type.'
+    ? `Also generate exactly 1 constraint. Choose from any of these categories — genre, decade, singer, format, or tone (tone = the emotional approach to the scenario, e.g. "Tone: Must be funny or ironic"). Pick what fits best.`
     : diff === 'hard'
-    ? 'Also generate exactly 2 constraints from different categories.'
+    ? `Also generate exactly 2 constraints from 2 DIFFERENT categories (genre, decade, singer, format, or tone). Tone options: funny/ironic, deeply serious, uplifting, opposite mood, bittersweet, angry/defiant, tender/gentle.`
     : '';
 
   const usedList = Array.from(room.usedScenarios).join(', ') || 'none yet';
@@ -162,10 +171,10 @@ ${constraintNote}
 
 Return JSON: {"text": "The scenario.", "theme": "2-3 word theme label", "constraints": []}
 constraints is [] for easy, one item for medium, two for hard.
-Constraint examples: "Genre: Hip-hop only", "Decade: 1990s only", "Singer: Female artist only", "Format: Bands only"`;
+Constraint examples: "Genre: Hip-hop only", "Decade: 1990s only", "Singer: Female artist only", "Format: Bands/groups only", "Tone: Must be funny or ironic"`;
 
   const raw = await callClaude(system, prompt);
-  const clean = raw.replace(/\`\`\`json|\`\`\`/g, '').trim();
+  const clean = raw.replace(/```json|```/g, '').trim();
   const parsed = JSON.parse(clean);
   if (parsed.theme) room.usedScenarios.add(parsed.theme);
   else room.usedScenarios.add(parsed.text.slice(0, 40));
@@ -182,26 +191,56 @@ Suggest exactly 3 well-known songs matching the EMOTIONAL FEEL. Format: one per 
 }
 
 async function getVerdict(room) {
-  const submissionsList = room.submissionOrder.map(p =>
-    `${p}: "${room.submissions[p]?.song || 'no submission'}"`
-  ).join('\n');
+  // Build submission list with audio vibe descriptors
+  const submissionsWithVibe = await Promise.all(
+    room.submissionOrder.map(async p => {
+      const sub = room.submissions[p];
+      if (!sub) return `${p}: no submission`;
+      let vibeDesc = '';
+      if (sub.trackUri && room.spotifyToken) {
+        try {
+          const trackId = sub.trackUri.split(':')[2];
+          const { default: fetch } = await import('node-fetch').catch(() => ({ default: globalThis.fetch }));
+          const res = await globalThis.fetch(
+            `https://api.spotify.com/v1/audio-features/${trackId}`,
+            { headers: { 'Authorization': `Bearer ${room.spotifyToken}` } }
+          );
+          if (res.ok) {
+            const af = await res.json();
+            const energy = af.energy > 0.7 ? 'high energy' : af.energy < 0.3 ? 'low energy' : 'mid energy';
+            const valence = af.valence > 0.7 ? 'upbeat/happy' : af.valence < 0.3 ? 'dark/sad' : 'mixed mood';
+            const dance = af.danceability > 0.7 ? 'very danceable' : af.danceability < 0.3 ? 'not danceable' : '';
+            const acoustic = af.acousticness > 0.6 ? 'acoustic' : '';
+            const parts = [energy, valence, dance, acoustic].filter(Boolean);
+            vibeDesc = ` [vibe: ${parts.join(', ')}]`;
+          }
+        } catch(e) {}
+      }
+      return `${p}: "${sub.song}"${vibeDesc}`;
+    })
+  );
 
+  const submissionsList = submissionsWithVibe.join('\n');
   const rankMode = room.settings.judgeStyle === 'ranked';
   const constraintNote = room.currentConstraints.length
-    ? `\nConstraints this round: ${room.currentConstraints.join(', ')}. Penalize violations.`
+    ? `\nConstraints this round: ${room.currentConstraints.join(', ')}. Penalize violations, especially Tone constraints which are about the emotional approach of the song.`
     : '';
 
-  const system = `You are the AI judge for Score It!, a music party game. You have genuine taste, wit, and strong opinions. Your verdicts are specific and entertaining. Respond in valid JSON only.`;
+  const system = `You are the AI judge for Score It!, a music party game. You have genuine taste, wit, and strong opinions. You judge songs on both their lyrical/thematic fit AND their sonic vibe. Your verdicts are specific and entertaining. Respond in valid JSON only.`;
 
   const prompt = `Scenario: "${room.currentScenario}"${constraintNote}
 
-Submissions:
+Submissions (with vibe data where available):
 ${submissionsList}
 
+Judge each song on TWO dimensions:
+1. CONTENT — do the lyrics, theme, and meaning of the song fit the scenario?
+2. VIBE — does the sonic energy, mood, and feel of the song match what the moment calls for?
+
 ${rankMode
-  ? `Rank all submissions best to worst. Give each a 1-2 sentence specific explanation. Return JSON:
+  ? `Rank all submissions best to worst. Give each a 1-2 sentence specific explanation covering both content and vibe. Return JSON:
 {"ranking": [{"player": "Name", "song": "Song", "reason": "Explanation"}], "reasoning": "1-2 sentence overall take."}`
-  : `Pick the winner. Explain specifically why this song wins and what others missed. 3-4 sentences. Return JSON:
+  : `Pick the winner. Explain specifically why this song wins on both content and vibe, and what others missed. 3-4 sentences. Return JSON:
 {"winner": "Player Name", "reasoning": "Specific 3-4 sentence explanation."}`
 }`;
 
