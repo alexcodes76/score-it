@@ -137,7 +137,7 @@ async function callClaude(system, user) {
 
 async function generateScenario(room) {
   const diff = room.settings.difficulty;
-  const system = `You are the host of Score It!, a music party game. Generate vivid, creative scenarios players respond to by picking a song. You must respond in valid JSON only, no preamble.`;
+  const system = `You are the host of Aux Battles, a music party game. Generate vivid, creative scenarios players respond to by picking a song. You must respond in valid JSON only, no preamble.`;
 
   const constraintCategories = {
     genre: ['Genre: Hip-hop only', 'Genre: Country only', 'Genre: R&B only', 'Genre: Rock only', 'Genre: Pop only', 'Genre: Folk only', 'Genre: Electronic only', 'Genre: Jazz only'],
@@ -183,7 +183,7 @@ Constraint examples: "Genre: Hip-hop only", "Decade: 1990s only", "Singer: Femal
 
 async function generateHints(scenario, constraints) {
   const constraintNote = constraints.length ? `\nConstraints: ${constraints.join(', ')}. All suggestions must meet these.` : '';
-  const system = `You are a music suggestion assistant in Score It!. Suggest songs matching the EMOTIONAL FEEL of a scenario, not its literal subject. Suggest well-known songs. Be concise.`;
+  const system = `You are a music suggestion assistant in Aux Battles. Suggest songs matching the EMOTIONAL FEEL of a scenario, not its literal subject. Suggest well-known songs. Be concise.`;
   const prompt = `Scenario: "${scenario}"${constraintNote}
 
 Suggest exactly 3 well-known songs matching the EMOTIONAL FEEL. Format: one per line as "Song Title — Artist". No explanations, no numbering.`;
@@ -226,7 +226,7 @@ async function getVerdict(room) {
     ? `\nConstraints this round: ${room.currentConstraints.join(', ')}. Penalize violations, especially Tone constraints which are about the emotional approach of the song.`
     : '';
 
-  const system = `You are the AI judge for Score It!, a music party game. You have genuine taste, wit, and strong opinions. You judge songs on both their lyrical/thematic fit AND their sonic vibe. Your verdicts are specific and entertaining. Respond in valid JSON only.`;
+  const system = `You are the AI judge for Aux Battles, a music party game. You have genuine taste, wit, and strong opinions. You judge songs on both their lyrical/thematic fit AND their sonic vibe. Your verdicts are specific and entertaining. Respond in valid JSON only.`;
 
   const prompt = `Scenario: "${room.currentScenario}"${constraintNote}
 
@@ -814,5 +814,5 @@ app.get('/play', (req, res) => res.sendFile(path.join(__dirname, 'public', 'play
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 server.listen(PORT, () => {
-  console.log(`Score It! server running on port ${PORT}`);
+  console.log(`Aux Battles server running on port ${PORT}`);
 });
