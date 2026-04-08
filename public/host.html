@@ -124,17 +124,86 @@
   }
   .flip-card-back { transform: rotateY(180deg); }
   @keyframes pulse { 0%,60%,100% { opacity:0.2; transform:scale(0.8); } 30% { opacity:1; transform:scale(1); } }
-  .timer-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin: 12px 0 6px; }
-  .timer-bar { height: 100%; background: var(--gold); border-radius: 2px; width: 100%; transition: width linear; }
+  .timer-bar-wrap { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin: 12px 0 6px; }
+  .timer-bar { height: 100%; background: #2DAA1F; border-radius: 2px; width: 100%; transition: width linear; }
   .badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 12px; }
   .badge-green { background: #0e2010; color: var(--green); border: 1px solid #1a4020; }
   .badge-yellow { background: #1e1a0e; color: var(--gold); border: 1px solid var(--gold-dim); }
-  .queue-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--border); }
-  .ranked-entry { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 10px; }
+  .queue-item { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; margin-bottom: 8px; border: 1px solid var(--border); transition: all 0.3s ease; }
+  .ranked-entry { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-bottom: 10px; transition: transform 0.2s ease; }
   .ranked-entry.winner { background: #080e10; border-color: var(--gold-dim); }
   .stepper-row { display: flex; align-items: center; gap: 14px; }
   .stepper-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; width: 40px; height: 40px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .stepper-val { font-family: 'Playfair Display', serif; font-size: 28px; color: #217FEF; min-width: 40px; text-align: center; }
+
+  /* ── MICRO-ANIMATIONS ── */
+
+  /* Breathing buttons */
+  .btn-primary {
+    animation: btnBreathe 3s ease-in-out infinite;
+  }
+  @keyframes btnBreathe {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(33,127,239,0); transform: scale(1); }
+    50% { box-shadow: 0 0 16px 2px rgba(33,127,239,0.25); transform: scale(1.01); }
+  }
+  .btn-primary:active { animation: none; transform: scale(0.97) !important; }
+
+  /* Floating cards */
+  .scenario-box {
+    animation: cardFloat 4s ease-in-out infinite;
+  }
+  @keyframes cardFloat {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-3px); }
+  }
+  .now-playing-card {
+    animation: cardFloat 3.5s ease-in-out infinite;
+  }
+  .verdict-box {
+    animation: cardFloat 4.2s ease-in-out infinite;
+  }
+
+  /* Screen transitions */
+  .screen.active {
+    animation: screenIn 0.3s ease forwards;
+  }
+  @keyframes screenIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Section label pulse on new content */
+  .score-pts {
+    transition: all 0.4s cubic-bezier(0.175,0.885,0.32,1.275);
+  }
+
+  /* Progress bar glow */
+  .progress-fill {
+    box-shadow: 0 0 8px rgba(33,127,239,0.4);
+  }
+
+  /* Queue item hover */
+  .queue-item:hover {
+    transform: translateX(2px);
+    border-color: #217FEF44;
+  }
+
+  /* Toggle option transition */
+  .toggle-opt {
+    transition: all 0.2s ease;
+  }
+  .toggle-opt:active {
+    transform: scale(0.96);
+  }
+
+  /* Player dot pulse for current player */
+  .player-dot.active {
+    animation: dotPulse 1s ease-in-out infinite;
+  }
+  @keyframes dotPulse {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.4); opacity: 0.8; }
+  }
 </style>
 </head>
 <body>
@@ -143,8 +212,8 @@
 
 <!-- SETUP -->
 <div id="screen-setup" class="screen active">
-  <div class="app-header" style="text-align:center;padding-bottom:24px;">
-    <div class="app-title" style="line-height:1;text-align:left;"><img src="/logo.png" alt="Aux Battles" style="height:96px;width:auto;object-fit:contain;display:block;"></div>
+  <div class="app-header" style="text-align:center;padding-bottom:20px;">
+    <div class="app-title" style="line-height:1;text-align:center;"><img src="/logo.png" alt="Aux Battles" style="height:144px;width:auto;object-fit:contain;display:block;margin:0 auto;"></div>
     <div class="app-subtitle">Host Setup</div>
   </div>
   <div class="content">
@@ -198,7 +267,7 @@
 <!-- LOBBY -->
 <div id="screen-lobby" class="screen">
   <div class="app-header">
-    <div class="app-title" style="line-height:1;text-align:left;"><img src="/logo.png" alt="Aux Battles" style="height:96px;width:auto;object-fit:contain;display:block;"></div>
+    <div class="app-title" style="line-height:1;text-align:center;"><img src="/logo.png" alt="Aux Battles" style="height:144px;width:auto;object-fit:contain;display:block;margin:0 auto;"></div>
     <div class="app-subtitle">Waiting for players</div>
   </div>
   <div class="content">
@@ -216,7 +285,7 @@
 <!-- ROUND / SUBMISSIONS -->
 <div id="screen-round" class="screen">
   <div class="app-header" style="padding-bottom:10px;">
-    <div class="app-title" style="line-height:1;text-align:left;"><img src="/logo.png" alt="Aux Battles" style="height:96px;width:auto;object-fit:contain;display:block;"></div>
+    <div class="app-title" style="line-height:1;text-align:center;"><img src="/logo.png" alt="Aux Battles" style="height:144px;width:auto;object-fit:contain;display:block;margin:0 auto;"></div>
     <div id="round-label" class="app-subtitle"></div>
   </div>
   <div class="content">
@@ -266,7 +335,7 @@
 <!-- PLAYBACK -->
 <div id="screen-playback" class="screen">
   <div class="app-header" style="padding-bottom:10px;">
-    <div class="app-title" style="line-height:1;text-align:left;"><img src="/logo.png" alt="Aux Battles" style="height:96px;width:auto;object-fit:contain;display:block;"></div>
+    <div class="app-title" style="line-height:1;text-align:center;"><img src="/logo.png" alt="Aux Battles" style="height:144px;width:auto;object-fit:contain;display:block;margin:0 auto;"></div>
     <div id="playback-round-label" class="app-subtitle"></div>
   </div>
   <div class="content">
@@ -971,9 +1040,12 @@ function showCurrentSongInfo() {
   artWrap.innerHTML = albumArt ? `<img src="${albumArt}" style="width:80px;height:80px;border-radius:8px;margin:12px auto 0;display:block;">` : '';
 
   const timerBar = document.getElementById('timer-bar');
+  const playerColor = getPlayerColor(player);
+  timerBar.style.background = playerColor;
+  timerBar.style.boxShadow = `0 0 8px ${playerColor}80`;
   timerBar.style.transition = 'none';
   timerBar.style.width = '100%';
-  document.getElementById('timer-label').textContent = state.settings.songDuration === 0 ? 'Ready' : formatTime(state.settings.songDuration);
+  document.getElementById('timer-label').textContent = '';
   renderPlaybackQueue();
 }
 
@@ -1025,6 +1097,12 @@ function startTimer() {
   clearInterval(state.playbackPoll);
   timerLabel.textContent = '';
 
+  // Set timer bar to current player's color
+  const currentPlayer = state.playbackQueue[state.playbackIndex];
+  const playerColor = currentPlayer ? getPlayerColor(currentPlayer) : '#2DAA1F';
+  timerBar.style.background = playerColor;
+  timerBar.style.boxShadow = `0 0 8px ${playerColor}80`;
+
   if (dur === 0) {
     timerBar.style.transition = 'none';
     timerBar.style.width = '100%';
@@ -1053,7 +1131,7 @@ function startTimer() {
   timerBar.style.transition = `width ${dur}s linear`;
   timerBar.style.width = '0%';
 
-  // Advance after dur seconds — runs regardless of isPaused state
+  // Advance after dur seconds
   state.playbackTimeout = setTimeout(async () => {
     spotifyPause();
     isLast ? (await playChime('judge'), finishPlayback()) : (await playChime('next'), advanceToNext());

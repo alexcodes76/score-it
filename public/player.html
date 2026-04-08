@@ -60,6 +60,31 @@
   .scenario-box.shimmer::after { content:''; position:absolute; top:0; left:-100%; right:0; bottom:0; background:linear-gradient(90deg,transparent,rgba(45,170,31,0.15),transparent); animation:shimmerSlide 1.2s ease forwards; }
   @keyframes shimmerSlide { from { left:-100%; } to { left:100%; } }
   @keyframes toastFade { 0% { opacity:0; transform:translateX(-50%) translateY(-10px); } 15% { opacity:1; transform:translateX(-50%) translateY(0); } 70% { opacity:1; } 100% { opacity:0; transform:translateX(-50%) translateY(-10px); } }
+
+  /* ── MICRO-ANIMATIONS ── */
+  .btn-primary { animation: btnBreathe 3s ease-in-out infinite; }
+  @keyframes btnBreathe {
+    0%,100% { box-shadow:0 0 0 0 rgba(33,127,239,0); transform:scale(1); }
+    50% { box-shadow:0 0 16px 2px rgba(33,127,239,0.25); transform:scale(1.01); }
+  }
+  .btn-primary:active { animation:none; transform:scale(0.97) !important; }
+  .btn { transition: all 0.15s ease; }
+
+  .scenario-box { animation: cardFloat 4s ease-in-out infinite; }
+  .confirmed-box { animation: cardFloat 3.8s ease-in-out infinite; }
+  @keyframes cardFloat {
+    0%,100% { transform:translateY(0px); }
+    50% { transform:translateY(-3px); }
+  }
+
+  .screen.active { animation: screenIn 0.3s ease forwards; }
+  @keyframes screenIn {
+    from { opacity:0; transform:translateY(8px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+
+  .track-result { transition: all 0.15s ease; }
+  .track-result:active { transform: scale(0.98); background: var(--surface2); }
 </style>
 </head>
 <body>
@@ -68,7 +93,7 @@
 <!-- JOIN -->
 <div id="screen-join" class="screen active">
   <div class="app-header">
-    <div class="app-title" style="line-height:1;"><img src="/logo.png" alt="Aux Battles" style="height:64px;width:auto;object-fit:contain;"></div>
+    <div class="app-title" style="line-height:1;text-align:center;"><img src="/logo.png" alt="Aux Battles" style="height:96px;width:auto;object-fit:contain;display:block;margin:0 auto;"></div>
     <div class="app-subtitle">Join a game</div>
   </div>
   <div class="content">
@@ -170,7 +195,7 @@
 <!-- CONFIRMED -->
 <div id="screen-confirmed" class="screen">
   <div class="app-header">
-    <div class="app-title" style="line-height:1;"><img src="/logo.png" alt="Aux Battles" style="height:64px;width:auto;object-fit:contain;display:block;"></div>
+    <div class="app-title" style="line-height:1;text-align:center;"><img src="/logo.png" alt="Aux Battles" style="height:96px;width:auto;object-fit:contain;display:block;margin:0 auto;"></div>
     <div class="app-subtitle" id="confirmed-round-label">Song locked in</div>
   </div>
   <div class="content">
