@@ -609,36 +609,10 @@ wss.on('connection', (ws) => {
 
       // If rejoining mid-game, catch them up immediately
       if (isRejoin && room.state !== 'lobby') {
-        // Send current round info
-        ws.send(JSON.stringify({
-          type: 'round_start',
-          round: room.currentRound,
-          rounds: room.settings.rounds,
-        }));
-
-        // Send current scenario
-        if (room.currentScenario) {
-          ws.send(JSON.stringify({
-            type: 'scenario',
-            scenario: room.currentScenario,
-            constraints: room.currentConstraints,
-            round: room.currentRound,
-            rounds: room.settings.rounds,
-          }));
-        }
-
-        // If they already submitted this round, show confirmed screen
         const submission = room.submissions[name];
-        if (submission) {
-          ws.send(JSON.stringify({
-            type: 'submission_confirmed',
-            song: submission.trackName || submission.song,
-            rejoin: true,
-          }));
-        }
 
-        // If we're in verdict state, send the verdict
         if (room.state === 'verdict' && room.verdictData) {
+          // Skip round_start entirely for verdict — go straight to verdict
           ws.send(JSON.stringify({
             type: 'verdict',
             verdict: room.verdictData,
@@ -648,11 +622,62 @@ wss.on('connection', (ws) => {
             isLastRound: room.currentRound >= room.settings.rounds,
             submissions: room.submissions,
           }));
-        }
-
-        // If judging in progress
-        if (room.state === 'judging') {
+        } else if (room.state === 'judging') {
           ws.send(JSON.stringify({ type: 'judging_start' }));
+        } else if (room.state === 'playing') {
+          // Songs are playing — send round info then go to confirmed/waiting
+          ws.send(JSON.stringify({
+            type: 'round_start',
+            round: room.currentRound,
+            rounds: room.settings.rounds,
+          }));
+          if (room.currentScenario) {
+            ws.send(JSON.stringify({
+              type: 'scenario',
+              scenario: room.currentScenario,
+              constraints: room.currentConstraints,
+              round: room.currentRound,
+              rounds: room.settings.rounds,
+            }));
+          }
+          // Send playback_start so they see the queue
+          const queue = Array.from(room.submissionOrder).map(p => ({ playerName: p, hidden: false }));
+          ws.send(JSON.stringify({ type: 'playback_start', queue }));
+          if (submission) {
+            ws.send(JSON.stringify({
+              type: 'submission_confirmed',
+              song: submission.trackName || submission.song,
+              rejoin: true,
+            }));
+          }
+        } else {
+          // submitting state — send round info and scenario
+          ws.send(JSON.stringify({
+            type: 'round_start',
+            round: room.currentRound,
+            rounds: room.settings.rounds,
+          }));
+          if (room.currentScenario) {
+            ws.send(JSON.stringify({
+              type: 'scenario',
+              scenario: room.currentScenario,
+              constraints: room.currentConstraints,
+              round: room.currentRound,
+              rounds: room.settings.rounds,
+            }));
+          }
+          // If already submitted, restore confirmed screen
+          if (submission) {
+            ws.send(JSON.stringify({
+              type: 'submission_confirmed',
+              song: submission.trackName || submission.song,
+              rejoin: true,
+            }));
+          }
+          // Send current submission count
+          const submitted = Object.keys(room.submissions).length;
+          const total = room.players.size + 1;
+          ws.send(JSON.stringify({ type: 'submission_count', submitted, total }));
         }
       }
 

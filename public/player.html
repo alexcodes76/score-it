@@ -430,9 +430,15 @@ function handleMessage(msg) {
 
     case 'submission_confirmed':
       if (msg.rejoin && msg.song) {
+        state.submitted = true;
         document.getElementById('confirmed-name').textContent = state.name;
         document.getElementById('confirmed-song').textContent = msg.song;
         document.getElementById('confirmed-artist').textContent = '';
+        document.getElementById('confirmed-round-label').textContent = `Round ${state.currentRound} of ${state.totalRounds}`;
+        if (state.currentScenario) {
+          document.getElementById('confirmed-scenario-box').style.display = 'block';
+          document.getElementById('confirmed-scenario-text').textContent = state.currentScenario;
+        }
         showScreen('screen-confirmed');
       }
       break;
@@ -601,16 +607,18 @@ function confirmTrack(idx) {
   state.submitted = true;
   stopSubmitTimer();
 
+  // Show confirmed immediately — don't wait for server echo
   document.getElementById('confirmed-name').textContent = state.name;
   document.getElementById('confirmed-song').textContent = track.name;
   document.getElementById('confirmed-artist').textContent = track.artists.map(a=>a.name).join(', ');
   document.getElementById('confirmed-round-label').textContent = `Round ${state.currentRound} of ${state.totalRounds}`;
-  // Show scenario so players can see it while waiting
   if (state.currentScenario) {
     document.getElementById('confirmed-scenario-box').style.display = 'block';
     document.getElementById('confirmed-scenario-text').textContent = state.currentScenario;
   }
   showScreen('screen-confirmed');
+  // Show own lock-in toast
+  showLockInToast(`You — ${track.name}`);
 }
 
 // ===================== SUBMISSION TIMER =====================
