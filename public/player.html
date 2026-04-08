@@ -59,6 +59,7 @@
   @keyframes winnerPop { 0% { transform:scale(0.5);opacity:0; } 70% { transform:scale(1.1); } 100% { transform:scale(1);opacity:1; } }
   .scenario-box.shimmer::after { content:''; position:absolute; top:0; left:-100%; right:0; bottom:0; background:linear-gradient(90deg,transparent,rgba(45,170,31,0.15),transparent); animation:shimmerSlide 1.2s ease forwards; }
   @keyframes shimmerSlide { from { left:-100%; } to { left:100%; } }
+  @keyframes toastFade { 0% { opacity:0; transform:translateX(-50%) translateY(-10px); } 15% { opacity:1; transform:translateX(-50%) translateY(0); } 70% { opacity:1; } 100% { opacity:0; transform:translateX(-50%) translateY(-10px); } }
 </style>
 </head>
 <body>
@@ -169,10 +170,26 @@
 <!-- CONFIRMED -->
 <div id="screen-confirmed" class="screen">
   <div class="app-header">
-    <div class="app-title" id="confirmed-name"></div>
-    <div class="app-subtitle">Song locked in</div>
+    <div class="app-title" style="line-height:1;"><img src="/logo.png" alt="Aux Battles" style="height:64px;width:auto;object-fit:contain;display:block;"></div>
+    <div class="app-subtitle" id="confirmed-round-label">Song locked in</div>
   </div>
   <div class="content">
+
+    <!-- Lock-in toast -->
+    <div id="lockin-toast" style="
+      display:none;position:fixed;top:80px;left:50%;transform:translateX(-50%);
+      background:#1a2a1a;border:1px solid #2DAA1F;border-radius:10px;
+      padding:10px 20px;font-size:14px;color:#2DAA1F;
+      z-index:1000;white-space:nowrap;
+      animation:toastFade 2s ease forwards;
+    " id="lockin-toast"></div>
+
+    <!-- Scenario visible during playback -->
+    <div id="confirmed-scenario-box" style="display:none;background:#080e10;border:1px solid #1a7a14;border-radius:12px;padding:14px 16px;margin-bottom:14px;">
+      <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;color:#1a7a14;margin-bottom:6px;">The Scenario</div>
+      <div style="font-family:'Playfair Display',serif;font-size:15px;font-style:italic;line-height:1.5;" id="confirmed-scenario-text"></div>
+    </div>
+
     <!-- Confirmed box at top -->
     <div class="confirmed-box" style="text-align:center;margin-bottom:20px;">
       <div style="font-size:24px;margin-bottom:8px;">✓</div>
@@ -186,9 +203,9 @@
       <div class="scenario-box" style="text-align:center;">
         <div class="scenario-label" id="np-label">Now Playing</div>
         <div id="np-art" style="margin:10px auto;"></div>
-        <div style="font-family:'Playfair Display',serif;font-size:20px;margin-bottom:4px;" id="np-song">—</div>
-        <div style="font-size:12px;color:var(--text-dim);margin-bottom:4px;" id="np-artist">—</div>
-        <div style="font-size:13px;color:var(--gold-dim);" id="np-player">—</div>
+        <div style="font-family:'Playfair Display',serif;font-size:24px;margin-bottom:4px;" id="np-song">—</div>
+        <div style="font-size:13px;color:var(--text-dim);margin-bottom:4px;" id="np-artist">—</div>
+        <div style="font-size:14px;color:var(--gold-dim);" id="np-player">—</div>
       </div>
 
       <!-- All slots — shown once playback starts -->
@@ -369,6 +386,7 @@ function handleMessage(msg) {
       document.getElementById('now-playing-section').style.display = 'none';
       document.getElementById('confirmed-waiting').style.display = 'block';
       document.getElementById('confirmed-waiting').textContent = 'Waiting for all players to submit...';
+      document.getElementById('confirmed-scenario-box').style.display = 'none';
       // Always navigate to submit screen — no matter where the player is
       showScreen('screen-submit');
       break;
@@ -397,6 +415,9 @@ function handleMessage(msg) {
       break;
 
     case 'submission_count':
+      if (state.submitted && msg.playerName && msg.playerName !== state.name) {
+        showLockInToast(msg.playerName);
+      }
       if (state.submitted) {
         document.getElementById('confirmed-count').textContent = `${msg.submitted} of ${msg.total} players done`;
       }
@@ -583,10 +604,50 @@ function confirmTrack(idx) {
   document.getElementById('confirmed-name').textContent = state.name;
   document.getElementById('confirmed-song').textContent = track.name;
   document.getElementById('confirmed-artist').textContent = track.artists.map(a=>a.name).join(', ');
+  document.getElementById('confirmed-round-label').textContent = `Round ${state.currentRound} of ${state.totalRounds}`;
+  // Show scenario so players can see it while waiting
+  if (state.currentScenario) {
+    document.getElementById('confirmed-scenario-box').style.display = 'block';
+    document.getElementById('confirmed-scenario-text').textContent = state.currentScenario;
+  }
   showScreen('screen-confirmed');
 }
 
 // ===================== SUBMISSION TIMER =====================
+// ===================== TICK SOUND =====================
+let _audioCtx = null;
+function getAudioCtx() {
+  if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return _audioCtx;
+}
+
+function playTick() {
+  try {
+    const ctx = getAudioCtx();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.08);
+  } catch(e) {}
+}
+
+// ===================== LOCK-IN TOAST =====================
+function showLockInToast(playerName) {
+  const toast = document.getElementById('lockin-toast');
+  if (!toast) return;
+  toast.textContent = `🔒 ${playerName} locked in`;
+  toast.style.display = 'block';
+  toast.style.animation = 'none';
+  void toast.offsetWidth;
+  toast.style.animation = 'toastFade 2s ease forwards';
+  setTimeout(() => { toast.style.display = 'none'; }, 2100);
+}
+
 function startSubmitTimer(seconds) {
   clearInterval(state.submitTimer);
   const wrap = document.getElementById('submit-timer-wrap');
@@ -599,6 +660,9 @@ function startSubmitTimer(seconds) {
   bar.style.width = '100%';
   void bar.offsetWidth;
 
+  // Unlock audio context on first timer start (needs user gesture — scenario tap will have happened)
+  try { getAudioCtx(); } catch(e) {}
+
   function tick() {
     remaining--;
     const pct = (remaining / seconds) * 100;
@@ -607,9 +671,10 @@ function startSubmitTimer(seconds) {
     const m = Math.floor(remaining / 60);
     const s = remaining % 60;
     label.textContent = `${m}:${s.toString().padStart(2, '0')}`;
-    // Turn red in last 10 seconds
     bar.style.background = remaining <= 10 ? '#c94c4c' : '#2DAA1F';
     label.style.color = remaining <= 10 ? '#c94c4c' : '#2DAA1F';
+    // Tick sound for last 10 seconds
+    if (remaining <= 10 && remaining > 0) playTick();
     if (remaining <= 0) {
       clearInterval(state.submitTimer);
       label.textContent = 'Time!';

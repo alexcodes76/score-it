@@ -167,6 +167,14 @@ Consider these unused emotional territories: ${shuffled}
 
 Bad example: "A moment of reflection." Good example: "The specific silence of a house after everyone has left for the last time."
 
+Consider these scenario TYPES for variety — don't always use the same type:
+- Situation: A vivid scene or moment ("The walk home after getting fired")
+- Decision: A choice someone faces ("You just deleted their number. For good this time.")
+- Dilemma: Torn between two things ("You love them but you know it's wrong")
+- Contradiction: Two opposing truths ("A funeral that somehow feels like a relief")
+- Provocation: A direct challenge ("A song that would make your ex regret everything")
+- Feeling: A pure emotional state ("The specific loneliness of being in a crowded room")
+
 ${constraintNote}
 
 Return JSON: {"text": "The scenario.", "theme": "2-3 word theme label", "constraints": []}
@@ -226,7 +234,7 @@ async function getVerdict(room) {
     ? `\nConstraints this round: ${room.currentConstraints.join(', ')}. Penalize violations, especially Tone constraints which are about the emotional approach of the song.`
     : '';
 
-  const system = `You are the AI judge for Aux Battles, a music party game. You have genuine taste, wit, and strong opinions. You judge songs on both their lyrical/thematic fit AND their sonic vibe. Your verdicts are specific and entertaining. Respond in valid JSON only.`;
+  const system = `You are the AI judge for Aux Battles, a music party game. You are brilliant, witty, slightly pretentious, and genuinely entertaining. You have STRONG opinions and you're not afraid to roast a bad pick. You compare songs directly when it's interesting to do so. You reward creativity and punish the obvious safe choice. If someone picks something boring or lazy, call it out with flair. If someone picks something genuinely inspired, celebrate it. You judge on both lyrical/thematic fit AND sonic vibe. Your verdicts should feel like a music critic who also does stand-up comedy. Respond in valid JSON only.`;
 
   const prompt = `Scenario: "${room.currentScenario}"${constraintNote}
 
@@ -239,9 +247,9 @@ Judge each song on TWO dimensions:
 
 ${rankMode
   ? `Rank all submissions best to worst. Give each a 1-2 sentence specific explanation covering both content and vibe. Return JSON:
-{"ranking": [{"player": "Name", "song": "Song", "reason": "Explanation"}], "reasoning": "1-2 sentence overall take."}`
+{"ranking": [{"player": "Name", "song": "Song", "reason": "Explanation (be witty, specific, and don't be afraid to roast or celebrate)"}], "reasoning": "1-2 sentence overall take with personality."}`
   : `Pick the winner. Explain specifically why this song wins on both content and vibe, and what others missed. 3-4 sentences. Return JSON:
-{"winner": "Player Name", "reasoning": "Specific 3-4 sentence explanation."}`
+{"winner": "Player Name", "reasoning": "Specific 3-4 sentence explanation. Be direct, funny, and opinionated. Compare the songs. Roast bad picks."}`
 }`;
 
   const raw = await callClaude(system, prompt);
@@ -691,7 +699,7 @@ wss.on('connection', (ws) => {
         submissions: submitted === total ? room.submissions : null,
       }));
 
-      broadcast(room, { type: 'submission_count', submitted, total }, ws);
+      broadcast(room, { type: 'submission_count', submitted, total, playerName: name }, ws);
       return;
     }
 
@@ -743,7 +751,7 @@ wss.on('connection', (ws) => {
       });
 
       // Notify other players (just count, not song)
-      broadcast(room, { type: 'submission_count', submitted, total }, ws);
+      broadcast(room, { type: 'submission_count', submitted, total, playerName: name }, ws);
       return;
     }
 
