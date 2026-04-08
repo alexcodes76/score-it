@@ -62,13 +62,13 @@
   @keyframes toastFade { 0% { opacity:0; transform:translateX(-50%) translateY(-10px); } 15% { opacity:1; transform:translateX(-50%) translateY(0); } 70% { opacity:1; } 100% { opacity:0; transform:translateX(-50%) translateY(-10px); } }
 
   /* ── MICRO-ANIMATIONS ── */
-  .btn-primary { animation: btnBreathe 3s ease-in-out infinite; }
+  .btn-breathe { animation: btnBreathe 3s ease-in-out infinite; }
   @keyframes btnBreathe {
-    0%,100% { box-shadow:0 0 0 0 rgba(33,127,239,0); transform:scale(1); }
-    50% { box-shadow:0 0 16px 2px rgba(33,127,239,0.25); transform:scale(1.01); }
+    0%,100% { box-shadow:0 0 0 0 rgba(33,127,239,0); }
+    50% { box-shadow:0 0 20px 3px rgba(33,127,239,0.3); }
   }
-  .btn-primary:active { animation:none; transform:scale(0.97) !important; }
-  .btn { transition: all 0.15s ease; }
+  .btn-primary:active, .btn-secondary:active { transform:scale(0.97); }
+  .btn { transition:transform 0.1s ease, box-shadow 0.2s ease; }
 
   .scenario-box { animation: cardFloat 4s ease-in-out infinite; }
   .confirmed-box { animation: cardFloat 3.8s ease-in-out infinite; }
@@ -77,9 +77,9 @@
     50% { transform:translateY(-3px); }
   }
 
-  .screen.active { animation: screenIn 0.3s ease forwards; }
+  .screen-entering { animation: screenIn 0.35s cubic-bezier(0.22,1,0.36,1) forwards; }
   @keyframes screenIn {
-    from { opacity:0; transform:translateY(8px); }
+    from { opacity:0; transform:translateY(12px); }
     to   { opacity:1; transform:translateY(0); }
   }
 
@@ -306,9 +306,14 @@ const state = {
 
 // ===================== SCREENS =====================
 function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(id).classList.add('active');
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active', 'screen-entering'));
+  const el = document.getElementById(id);
+  void el.offsetWidth;
+  el.classList.add('active', 'screen-entering');
   window.scrollTo(0, 0);
+  document.querySelectorAll('.btn-breathe').forEach(b => b.classList.remove('btn-breathe'));
+  const primaryBtn = el.querySelector('.btn-primary');
+  if (primaryBtn) setTimeout(() => primaryBtn.classList.add('btn-breathe'), 400);
 }
 
 function showError(elId, msg) {
@@ -386,10 +391,13 @@ function handleMessage(msg) {
         const savedToken = localStorage.getItem('spotify_token');
         if (savedToken) state.spotifyToken = savedToken;
       }
-      // Only navigate to waiting if this is a fresh join, not a rejoin
-      if (!msg.rejoin) {
-        showScreen('screen-waiting');
-      }
+      // Apply server-assigned colors
+      if (msg.playerColors) applyPlayerColors(msg.playerColors);
+      if (!msg.rejoin) showScreen('screen-waiting');
+      break;
+
+    case 'player_colors':
+      applyPlayerColors(msg.playerColors);
       break;
 
     case 'round_start':
@@ -760,17 +768,13 @@ function renderNowPlayingQueue() {
 }
 
 // ===================== PLAYER COLORS =====================
-const PLAYER_COLORS = [
-  '#217FEF', '#2DAA1F', '#e05ce0', '#ef8c21', '#ef2157',
-  '#21efce', '#efef21', '#7c21ef', '#ef2121', '#21a8ef'
-];
-const playerColorMap = {};
+// Colors come from server — consistent across all clients
+const playerColorMap = { 'Host': '#2DAA1F' };
 function getPlayerColor(name) {
-  if (!playerColorMap[name]) {
-    const used = Object.keys(playerColorMap).length;
-    playerColorMap[name] = PLAYER_COLORS[used % PLAYER_COLORS.length];
-  }
-  return playerColorMap[name];
+  return playerColorMap[name] || '#7a7268';
+}
+function applyPlayerColors(colorMap) {
+  if (colorMap) Object.assign(playerColorMap, colorMap);
 }
 
 // ===================== CONFETTI =====================

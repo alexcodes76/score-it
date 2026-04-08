@@ -48,10 +48,25 @@ function createRoom(hostWs) {
     submissionOrder: [],
     verdictData: null,
     usedScenarios: new Set(),
-    spotifyToken: null,  // host's token, shared with players for search
+    spotifyToken: null,
+    playerColors: { 'Host': '#2DAA1F' }, // host is always green
+    colorIndex: 0,
   };
   rooms.set(code, room);
   return room;
+}
+
+const PLAYER_COLORS = [
+  '#217FEF', '#e05ce0', '#ef8c21', '#ef2157',
+  '#21efce', '#efef21', '#7c21ef', '#21a8ef', '#ef4521'
+];
+
+function assignPlayerColor(room, name) {
+  if (!room.playerColors[name]) {
+    room.playerColors[name] = PLAYER_COLORS[room.colorIndex % PLAYER_COLORS.length];
+    room.colorIndex++;
+  }
+  return room.playerColors[name];
 }
 
 function broadcast(room, message, excludeWs = null) {
@@ -597,7 +612,10 @@ wss.on('connection', (ws) => {
         wantsHints: msg.wantsHints || existingPlayer.wantsHints || false,
       });
 
-      // Send join confirmation with token
+      // Assign a server-side color to this player
+      const playerColor = assignPlayerColor(room, name);
+
+      // Send join confirmation with token and color map
       ws.send(JSON.stringify({
         type: 'joined',
         name,
@@ -605,7 +623,12 @@ wss.on('connection', (ws) => {
         spotifyClientId: SPOTIFY_CLIENT_ID,
         spotifyToken: room.spotifyToken || null,
         rejoin: isRejoin,
+        playerColor,
+        playerColors: room.playerColors,
       }));
+
+      // Broadcast updated color map to host and all players
+      broadcast(room, { type: 'player_colors', playerColors: room.playerColors }, ws);
 
       // If rejoining mid-game, catch them up immediately
       if (isRejoin && room.state !== 'lobby') {
