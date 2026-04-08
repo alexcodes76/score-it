@@ -49,7 +49,7 @@ function createRoom(hostWs) {
     verdictData: null,
     usedScenarios: new Set(),
     spotifyToken: null,
-    playerColors: { 'Host': '#2DAA1F' }, // host is always green
+    playerColors: { 'Host': '#F5A623' }, // Host = warm gold, distinct from player colors
     colorIndex: 0,
   };
   rooms.set(code, room);
@@ -219,27 +219,29 @@ async function getVerdict(room) {
     room.submissionOrder.map(async p => {
       const sub = room.submissions[p];
       if (!sub) return `${p}: no submission`;
+      const songName = sub.trackName || sub.song || 'unknown';
       let vibeDesc = '';
       if (sub.trackUri && room.spotifyToken) {
         try {
           const trackId = sub.trackUri.split(':')[2];
-          const { default: fetch } = await import('node-fetch').catch(() => ({ default: globalThis.fetch }));
-          const res = await globalThis.fetch(
+          const res = await fetch(
             `https://api.spotify.com/v1/audio-features/${trackId}`,
             { headers: { 'Authorization': `Bearer ${room.spotifyToken}` } }
           );
           if (res.ok) {
             const af = await res.json();
-            const energy = af.energy > 0.7 ? 'high energy' : af.energy < 0.3 ? 'low energy' : 'mid energy';
-            const valence = af.valence > 0.7 ? 'upbeat/happy' : af.valence < 0.3 ? 'dark/sad' : 'mixed mood';
-            const dance = af.danceability > 0.7 ? 'very danceable' : af.danceability < 0.3 ? 'not danceable' : '';
-            const acoustic = af.acousticness > 0.6 ? 'acoustic' : '';
-            const parts = [energy, valence, dance, acoustic].filter(Boolean);
-            vibeDesc = ` [vibe: ${parts.join(', ')}]`;
+            if (af && af.energy !== undefined) {
+              const energy = af.energy > 0.7 ? 'high energy' : af.energy < 0.3 ? 'low energy' : 'mid energy';
+              const valence = af.valence > 0.7 ? 'upbeat/happy' : af.valence < 0.3 ? 'dark/sad' : 'mixed mood';
+              const dance = af.danceability > 0.7 ? 'very danceable' : af.danceability < 0.3 ? 'not danceable' : '';
+              const acoustic = af.acousticness > 0.6 ? 'acoustic' : '';
+              const parts = [energy, valence, dance, acoustic].filter(Boolean);
+              vibeDesc = ` [vibe: ${parts.join(', ')}]`;
+            }
           }
         } catch(e) {}
       }
-      return `${p}: "${sub.song}"${vibeDesc}`;
+      return `${p}: "${songName}"${vibeDesc}`;
     })
   );
 

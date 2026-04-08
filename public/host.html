@@ -666,7 +666,7 @@ function handleMessage(msg) {
       state.roomCode = msg.code;
       document.getElementById('room-code-display').textContent = msg.code;
       // Host is always green
-      playerColorMap['Host'] = '#2DAA1F';
+      playerColorMap['Host'] = '#F5A623';
       showScreen('screen-lobby');
       break;
 
@@ -788,7 +788,7 @@ function handleMessage(msg) {
 
 // ===================== PLAYER COLORS =====================
 // Colors assigned server-side for consistency across all clients
-const playerColorMap = { 'Host': '#2DAA1F' };
+const playerColorMap = { 'Host': '#F5A623' };  // Host = warm gold, distinct from player colors
 
 function getPlayerColor(name) {
   return playerColorMap[name] || '#7a7268';
@@ -1074,35 +1074,42 @@ function startPlaying() {
     submissions: state.submissions,
   });
 
-  // Safari requires audio to be triggered synchronously from a user gesture.
-  // Call resume() immediately (synchronous), THEN load the track via fetch.
-  if (state.spotifyPlayer) {
-    state.spotifyPlayer.resume().catch(() => {});
+  if (!sub?.trackUri) { setTimeout(() => startTimer(), 1200); return; }
+
+  // activateElement() must be called synchronously in the click handler
+  // to satisfy Safari/Chrome autoplay policy — do not await before this
+  if (state.spotifyPlayer) state.spotifyPlayer.activateElement();
+
+  // Transfer playback to our device first (fixes round 1 "needs extra click")
+  // then immediately start the track
+  const playTrack = () => {
+    fetch(`https://api.spotify.com/v1/me/player/play?device_id=${state.spotifyDeviceId}`, {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${state.spotifyToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uris: [sub.trackUri], position_ms: 0 }),
+    }).then(() => {
+      send({
+        type: 'host_now_playing',
+        playerName: player,
+        trackName: sub?.trackName || sub?.song || '—',
+        artistName: sub?.artistName || '',
+        albumArt: sub?.albumArt || '',
+        index: state.playbackIndex,
+        total: state.playbackQueue.length,
+      });
+    }).catch(() => {});
+  };
+
+  if (state.spotifyToken && state.spotifyDeviceId) {
+    // Transfer playback to this device first, then play
+    fetch('https://api.spotify.com/v1/me/player', {
+      method: 'PUT',
+      headers: { 'Authorization': `Bearer ${state.spotifyToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ device_ids: [state.spotifyDeviceId], play: false }),
+    }).then(() => playTrack()).catch(() => playTrack()); // play even if transfer fails
   }
 
-  if (state.spotifyToken && state.spotifyDeviceId && sub?.trackUri) {
-    // Small delay so resume() has time to establish the audio context
-    setTimeout(() => {
-      fetch(`https://api.spotify.com/v1/me/player/play?device_id=${state.spotifyDeviceId}`, {
-        method: 'PUT',
-        headers: { 'Authorization': `Bearer ${state.spotifyToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uris: [sub.trackUri], position_ms: 0 }),
-      }).then(() => {
-        send({
-          type: 'host_now_playing',
-          playerName: player,
-          trackName: sub?.trackName || sub?.song || '—',
-          artistName: sub?.artistName || '',
-          albumArt: sub?.albumArt || '',
-          index: state.playbackIndex,
-          total: state.playbackQueue.length,
-        });
-      }).catch(() => {});
-    }, 100);
-  }
-
-  // Start timer after 1.2s
-  setTimeout(() => startTimer(), 1200);
+  setTimeout(() => startTimer(), 1500);
 }
 
 function startTimer() {

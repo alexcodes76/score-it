@@ -516,13 +516,20 @@ function handleMessage(msg) {
       break;
 
     case 'judging_start':
-      // Show judging state on whatever screen they're on
+      // Navigate to confirmed screen and show deliberating state
+      document.getElementById('now-playing-section').style.display = 'none';
       document.getElementById('confirmed-waiting').style.display = 'block';
       document.getElementById('confirmed-waiting').innerHTML = `
-        <div style="text-align:center;padding:20px 0;">
-          <div class="loading-dots" style="justify-content:center;"><span></span><span></span><span></span></div>
-          <div style="margin-top:12px;font-size:14px;color:var(--gold);">The judge is deliberating...</div>
+        <div style="text-align:center;padding:32px 0;">
+          <div style="font-size:40px;margin-bottom:16px;">⚖️</div>
+          <div class="loading-dots" style="justify-content:center;margin-bottom:12px;"><span></span><span></span><span></span></div>
+          <div style="font-family:'Playfair Display',serif;font-size:18px;color:var(--gold);margin-bottom:8px;">The Judge Is Deliberating</div>
+          <div style="font-size:13px;color:var(--text-dim);">Results coming soon...</div>
         </div>`;
+      if (state.currentScenario) {
+        document.getElementById('confirmed-scenario-box').style.display = 'block';
+        document.getElementById('confirmed-scenario-text').textContent = state.currentScenario;
+      }
       showScreen('screen-confirmed');
       break;
 
@@ -769,7 +776,7 @@ function renderNowPlayingQueue() {
 
 // ===================== PLAYER COLORS =====================
 // Colors come from server — consistent across all clients
-const playerColorMap = { 'Host': '#2DAA1F' };
+const playerColorMap = { 'Host': '#F5A623' };  // Host = gold, players get server-assigned colors
 function getPlayerColor(name) {
   return playerColorMap[name] || '#7a7268';
 }
