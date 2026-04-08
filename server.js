@@ -699,7 +699,7 @@ wss.on('connection', (ws) => {
         submissions: submitted === total ? room.submissions : null,
       }));
 
-      broadcast(room, { type: 'submission_count', submitted, total, playerName: name }, ws);
+      broadcast(room, { type: 'submission_count', submitted, total, playerName: hostName }, ws);
       return;
     }
 
