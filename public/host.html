@@ -376,8 +376,10 @@
   </div>
   <div class="content">
     <div id="verdict-loading" style="text-align:center;padding:40px 0;display:none;">
-      <div class="loading-dots"><span></span><span></span><span></span></div>
-      <div style="margin-top:14px;font-size:13px;color:var(--text-dim);">The judge is deliberating...</div>
+      <div style="font-size:48px;margin-bottom:16px;">⚖️</div>
+      <div class="loading-dots" style="justify-content:center;margin-bottom:12px;"><span></span><span></span><span></span></div>
+      <div style="font-family:'Playfair Display',serif;font-size:20px;color:var(--gold);margin-bottom:8px;">The Judge Is Deliberating</div>
+      <div style="font-size:13px;color:var(--text-dim);">Results coming soon...</div>
     </div>
     <div id="verdict-content" style="display:none;">
       <div class="verdict-box">
@@ -773,6 +775,8 @@ function handleMessage(msg) {
 
     case 'verdict':
       if (msg.submissions) state.submissions = msg.submissions;
+      console.log('VERDICT received:', JSON.stringify(msg.verdict));
+      console.log('SCORES received:', JSON.stringify(msg.scores));
       renderVerdict(msg.verdict, msg.scores, msg.isLastRound);
       break;
 
@@ -1305,7 +1309,10 @@ function judgeRound() {
 
 // ===================== VERDICT =====================
 function renderVerdict(verdict, scores, isLastRound) {
-  state.scores = scores;
+  console.log('renderVerdict called:', JSON.stringify({verdict, scores}));
+  if (!verdict) { console.error('No verdict data'); return; }
+
+  state.scores = scores || {};
   document.getElementById('verdict-loading').style.display = 'none';
   document.getElementById('verdict-content').style.display = 'block';
 
@@ -1313,33 +1320,31 @@ function renderVerdict(verdict, scores, isLastRound) {
   launchConfetti();
   setTimeout(() => {
     const el = document.getElementById('verdict-winner');
-    el.classList.remove('winner-pulse');
-    void el.offsetWidth;
-    el.classList.add('winner-pulse');
+    if (el) { el.classList.remove('winner-pulse'); void el.offsetWidth; el.classList.add('winner-pulse'); }
   }, 200);
 
-  const isRanked = verdict.ranking;
+  const isRanked = verdict.ranking && verdict.ranking.length > 0;
   if (isRanked) {
     const winner = verdict.ranking[0];
     const winnerColor = getPlayerColor(winner.player);
-    document.getElementById('verdict-winner').textContent = winner.player;
+    document.getElementById('verdict-winner').textContent = winner.player || '—';
     document.getElementById('verdict-winner').style.color = winnerColor;
-    document.getElementById('verdict-song').textContent = `"${winner.song}"`;
+    document.getElementById('verdict-song').textContent = winner.song ? `"${winner.song}"` : '';
     document.getElementById('verdict-text').textContent = verdict.reasoning || '';
     document.getElementById('verdict-ranked').style.display = 'block';
     document.getElementById('verdict-ranked-list').innerHTML = verdict.ranking.map((e, i) => `
       <div class="ranked-entry ${i === 0 ? 'winner' : ''}">
-        <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:6px;">
-          <div class="player-dot" style="background:${getPlayerColor(e.player)};box-shadow:0 0 6px ${getPlayerColor(e.player)}80;margin-bottom:2px;"></div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
+          <div class="player-dot" style="background:${getPlayerColor(e.player)};box-shadow:0 0 6px ${getPlayerColor(e.player)}80;flex-shrink:0;"></div>
           <span style="font-family:'Playfair Display',serif;font-size:20px;color:${i === 0 ? getPlayerColor(e.player) : 'var(--text-dim)'};">#${i+1}</span>
-          <span style="font-size:15px;">${e.player}</span>
+          <span style="font-size:15px;font-weight:500;">${e.player}</span>
           <span style="font-size:13px;color:var(--text-dim);font-style:italic;">"${e.song}"</span>
         </div>
-        <div style="font-size:13px;color:var(--text-mid);line-height:1.5;">${e.reason}</div>
+        <div style="font-size:13px;color:var(--text-mid);line-height:1.6;">${e.reason}</div>
       </div>
     `).join('');
   } else {
-    const winner = verdict.winner || '—';
+    const winner = verdict.winner || Object.keys(state.submissions)[0] || '—';
     const winnerColor = getPlayerColor(winner);
     document.getElementById('verdict-winner').textContent = winner;
     document.getElementById('verdict-winner').style.color = winnerColor;
@@ -1349,14 +1354,16 @@ function renderVerdict(verdict, scores, isLastRound) {
     document.getElementById('verdict-ranked').style.display = 'none';
   }
 
-  const sorted = Object.entries(scores).sort((a,b) => b[1]-a[1]);
-  document.getElementById('verdict-scores').innerHTML = sorted.map(([p, pts], i) => `
-    <div class="score-row ${i === 0 ? 'leader' : ''}">
-      <div style="width:24px;font-size:12px;color:var(--text-dim);">${i+1}</div>
-      <div style="flex:1;font-size:16px;">${p}</div>
-      <div class="score-pts">${pts}</div>
-    </div>
-  `).join('');
+  const sorted = Object.entries(state.scores).sort((a,b) => b[1]-a[1]);
+  document.getElementById('verdict-scores').innerHTML = sorted.map(([p, pts], i) => {
+    const c = getPlayerColor(p);
+    return `
+      <div class="score-row ${i === 0 ? 'leader' : ''}">
+        <div class="player-dot" style="background:${c};flex-shrink:0;"></div>
+        <div style="flex:1;font-size:15px;margin-left:8px;">${p}</div>
+        <div class="score-pts" style="color:${c};">${pts}</div>
+      </div>`;
+  }).join('');
 
   document.getElementById('next-btn').textContent = isLastRound ? 'Final Scores →' : 'Next Round →';
   document.getElementById('verdict-round-label').textContent = `Round ${state.currentRound} of ${state.totalRounds}`;

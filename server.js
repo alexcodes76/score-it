@@ -246,6 +246,8 @@ async function getVerdict(room) {
   );
 
   const submissionsList = submissionsWithVibe.join('\n');
+  console.log('Judging submissions:', submissionsList);
+  console.log('Scenario:', room.currentScenario);
   const rankMode = room.settings.judgeStyle === 'ranked';
   const constraintNote = room.currentConstraints.length
     ? `\nConstraints this round: ${room.currentConstraints.join(', ')}. Penalize violations, especially Tone constraints which are about the emotional approach of the song.`
@@ -270,6 +272,7 @@ ${rankMode
 }`;
 
   const raw = await callClaude(system, prompt);
+  console.log('Raw AI verdict:', raw);
   const clean = raw.replace(/```json|```/g, '').trim();
   return JSON.parse(clean);
 }
@@ -525,6 +528,7 @@ wss.on('connection', (ws) => {
       broadcast(room, { type: 'judging_start' });
       try {
         const verdict = await getVerdict(room);
+        console.log('Verdict result:', JSON.stringify(verdict));
         room.verdictData = verdict;
         applyScores(room, verdict);
         room.state = 'verdict';
